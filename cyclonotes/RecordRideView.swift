@@ -8,9 +8,13 @@ struct RecordRideView: View {
     @Environment(\.modelContext) private var context
 
     @State private var ride: Ride?   // active ride (not saved until Stop)
-    @State private var region = MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: -37.8136, longitude: 144.9631),
-        span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+
+    // Camera-driven Map (iOS 17+)
+    @State private var cameraPosition: MapCameraPosition = .region(
+        MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: -37.8136, longitude: 144.9631), // placeholder; will update as soon as points arrive
+            span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+        )
     )
 
     @State private var showingNoteSheet = false
@@ -20,17 +24,31 @@ struct RecordRideView: View {
     var body: some View {
         VStack(spacing: 0) {
 
-            // Modern SwiftUI Map with overlay polyline
-            Map(initialPosition: .region(region)) {
+            Map(position: $cameraPosition) {
                 let coords = recorder.livePoints.map { $0.coordinate }
+
+                // Route polyline
                 if coords.count > 1 {
                     MapPolyline(coordinates: coords)
                 }
+
+                // Start marker
+                if let start = coords.first {
+                    Marker("Start", systemImage: "circle.fill", coordinate: start)
+                        .tint(.green)
+                }
+
+                // End marker (latest point)
+                if let end = coords.last {
+                    Marker("End", systemImage: "mappin.circle.fill", coordinate: end)
+                        .tint(.red)
+                }
             }
             .onReceive(recorder.$livePoints) { points in
+                // Follow latest location while recording
                 if let last = points.last {
-                    // keep camera roughly following the latest point
-                    region.center = last.coordinate
+                    let span = MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+                    cameraPosition = .region(MKCoordinateRegion(center: last.coordinate, span: span))
                 }
             }
             .frame(maxHeight: .infinity)
@@ -48,24 +66,18 @@ struct RecordRideView: View {
             HStack(spacing: 12) {
                 switch recorder.state {
                 case .idle:
-                    Button {
-                        startRide()
-                    } label: {
+                    Button { startRide() } label: {
                         Label("Start", systemImage: "play.fill")
                     }
                     .buttonStyle(.borderedProminent)
 
                 case .recording:
-                    Button {
-                        recorder.pause()
-                    } label: {
+                    Button { recorder.pause() } label: {
                         Label("Pause", systemImage: "pause.fill")
                     }
                     .buttonStyle(.bordered)
 
-                    Button {
-                        showingNoteSheet = true
-                    } label: {
+                    Button { showingNoteSheet = true } label: {
                         Label("Add Note", systemImage: "note.text")
                     }
 
@@ -73,24 +85,18 @@ struct RecordRideView: View {
                         Label("Add Photo", systemImage: "camera")
                     }
 
-                    Button(role: .destructive) {
-                        stopAndSaveRide()
-                    } label: {
+                    Button(role: .destructive) { stopAndSaveRide() } label: {
                         Label("Stop", systemImage: "stop.fill")
                     }
                     .buttonStyle(.borderedProminent)
 
                 case .paused:
-                    Button {
-                        recorder.resume()
-                    } label: {
+                    Button { recorder.resume() } label: {
                         Label("Resume", systemImage: "play.fill")
                     }
                     .buttonStyle(.bordered)
 
-                    Button(role: .destructive) {
-                        stopAndSaveRide()
-                    } label: {
+                    Button(role: .destructive) { stopAndSaveRide() } label: {
                         Label("Stop", systemImage: "stop.fill")
                     }
                     .buttonStyle(.borderedProminent)
@@ -135,11 +141,7 @@ struct RecordRideView: View {
         }
 
         context.insert(ride)
-        do {
-            try context.save()
-        } catch {
-            print("Failed to save ride: \(error)")
-        }
+        do { try context.save() } catch { print("Failed to save ride: \(error)") }
         self.ride = nil
     }
 
