@@ -41,8 +41,24 @@ struct RideDetailView: View {
         ScrollView {
             if let r = ride.coordinateBounds {
                 Map(initialPosition: .region(r)) {
-                    let coords = ride.points.map { CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lon) }
-                    if coords.count > 1 { MapPolyline(coordinates: coords) }
+                    let coords = ride.points.map {
+                        CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lon)
+                    }
+
+                    // Route polyline
+                    if coords.count > 1 {
+                        MapPolyline(coordinates: coords)
+                    }
+
+                    // Start & End markers
+                    if let start = coords.first {
+                        Marker("Start", systemImage: "circle.fill", coordinate: start)
+                            .tint(.green)
+                    }
+                    if let end = coords.last {
+                        Marker("End", systemImage: "mappin.circle.fill", coordinate: end)
+                            .tint(.red)
+                    }
                 }
                 .frame(height: 220)
             }
