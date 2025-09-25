@@ -6,9 +6,9 @@ import SwiftData
 struct RecordRideView: View {
     @EnvironmentObject private var recorder: RideRecorder
     @Environment(\.modelContext) private var context
-
+    
     @State private var ride: Ride?   // active ride (not saved until Stop)
-
+    
     // Camera-driven Map (iOS 17+)
     @State private var cameraPosition: MapCameraPosition = .region(
         MKCoordinateRegion(
@@ -16,94 +16,115 @@ struct RecordRideView: View {
             span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
         )
     )
-
+    
     @State private var showingNoteSheet = false
     @State private var noteText = ""
     @State private var selectedPhoto: PhotosPickerItem?
-
+    
     var body: some View {
-        VStack(spacing: 0) {
-
-            Map(position: $cameraPosition) {
-                let coords = recorder.livePoints.map { $0.coordinate }
-
-                // Route polyline
-                if coords.count > 1 {
-                    MapPolyline(coordinates: coords)
+        GeometryReader { geo in
+            VStack(spacing: 0) {
+                
+                // ===== Map (reduced height so the control panel has room) =====
+                Map(position: $cameraPosition) {
+                    let coords = recorder.livePoints.map { $0.coordinate }
+                    
+                    if coords.count > 1 {
+                        MapPolyline(coordinates: coords)
+                    }
+                    if let start = coords.first {
+                        Marker("Start", systemImage: "circle.fill", coordinate: start)
+                            .tint(.green)
+                    }
+                    if let end = coords.last {
+                        Marker("End", systemImage: "mappin.circle.fill", coordinate: end)
+                            .tint(.red)
+                    }
                 }
-
-                // Start marker
-                if let start = coords.first {
-                    Marker("Start", systemImage: "circle.fill", coordinate: start)
-                        .tint(.green)
+                .onReceive(recorder.$livePoints) { points in
+                    // ⬅️ Keep your behavior: always follow the latest location
+                    if let last = points.last {
+                        let span = MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+                        cameraPosition = .region(MKCoordinateRegion(center: last.coordinate, span: span))
+                    }
                 }
-
-                // End marker (latest point)
-                if let end = coords.last {
-                    Marker("End", systemImage: "mappin.circle.fill", coordinate: end)
-                        .tint(.red)
+                .frame(height: max(geo.size.height * 0.55, 320)) // ~55% of screen, min 320pt
+                
+                // ===== Bottom panel (three rows) =====
+                VStack(alignment: .leading, spacing: 16) {
+                    
+                    // Row 1 — Stats
+                    HStack(spacing: 12) {
+                        StatCard(title: "Distance", value: formatDistance(recorder.distanceMeters))
+                            .frame(maxWidth: .infinity)
+                        StatCard(title: "Points", value: "\(recorder.livePoints.count)")
+                            .frame(maxWidth: .infinity)
+                        StatCard(title: "State", value: String(describing: recorder.state).capitalized)
+                            .frame(maxWidth: .infinity)
+                    }
+                    
+                    // Row 2 — Primary controls: (left) Start/Pause/Resume  (right) Stop
+                    HStack(spacing: 12) {
+                        Group {
+                            switch recorder.state {
+                            case .idle:
+                                Button { startRide() } label: {
+                                    Label("Start", systemImage: "play.fill")
+                                        .frame(maxWidth: .infinity, minHeight: 44)
+                                        .lineLimit(1)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                
+                            case .recording:
+                                Button { recorder.pause() } label: {
+                                    Label("Pause", systemImage: "pause.fill")
+                                        .frame(maxWidth: .infinity, minHeight: 44)
+                                        .lineLimit(1)
+                                }
+                                .buttonStyle(.bordered)
+                                
+                            case .paused:
+                                Button { recorder.resume() } label: {
+                                    Label("Resume", systemImage: "play.fill")
+                                        .frame(maxWidth: .infinity, minHeight: 44)
+                                        .lineLimit(1)
+                                }
+                                .buttonStyle(.bordered)
+                            }
+                        }
+                        
+                        Button(role: .destructive) { stopAndSaveRide() } label: {
+                            Label("Stop", systemImage: "stop.fill")
+                                .frame(maxWidth: .infinity, minHeight: 44)
+                                .lineLimit(1)
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                    .font(.headline)
+                    
+                    // Row 3 — Secondary controls: (left) Add Note  (right) Add Photo
+                    HStack(spacing: 12) {
+                        Button { showingNoteSheet = true } label: {
+                            Label("Add Note", systemImage: "note.text")
+                                .frame(maxWidth: .infinity, minHeight: 44)
+                                .lineLimit(1)
+                        }
+                        
+                        PhotosPicker(selection: $selectedPhoto, matching: .images, photoLibrary: .shared()) {
+                            Label("Add Photo", systemImage: "camera")
+                                .frame(maxWidth: .infinity, minHeight: 44)
+                                .lineLimit(1)
+                        }
+                    }
+                    .font(.headline)
                 }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+                .background(.ultraThinMaterial)
             }
-            .onReceive(recorder.$livePoints) { points in
-                // Follow latest location while recording
-                if let last = points.last {
-                    let span = MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
-                    cameraPosition = .region(MKCoordinateRegion(center: last.coordinate, span: span))
-                }
-            }
-            .frame(maxHeight: .infinity)
-
-            // Stats row
-            HStack {
-                StatCard(title: "Distance", value: formatDistance(recorder.distanceMeters))
-                StatCard(title: "Points", value: "\(recorder.livePoints.count)")
-                StatCard(title: "State", value: String(describing: recorder.state).capitalized)
-            }
-            .padding(.horizontal)
-            .padding(.top, 8)
-
-            // Controls row
-            HStack(spacing: 12) {
-                switch recorder.state {
-                case .idle:
-                    Button { startRide() } label: {
-                        Label("Start", systemImage: "play.fill")
-                    }
-                    .buttonStyle(.borderedProminent)
-
-                case .recording:
-                    Button { recorder.pause() } label: {
-                        Label("Pause", systemImage: "pause.fill")
-                    }
-                    .buttonStyle(.bordered)
-
-                    Button { showingNoteSheet = true } label: {
-                        Label("Add Note", systemImage: "note.text")
-                    }
-
-                    PhotosPicker(selection: $selectedPhoto, matching: .images, photoLibrary: .shared()) {
-                        Label("Add Photo", systemImage: "camera")
-                    }
-
-                    Button(role: .destructive) { stopAndSaveRide() } label: {
-                        Label("Stop", systemImage: "stop.fill")
-                    }
-                    .buttonStyle(.borderedProminent)
-
-                case .paused:
-                    Button { recorder.resume() } label: {
-                        Label("Resume", systemImage: "play.fill")
-                    }
-                    .buttonStyle(.bordered)
-
-                    Button(role: .destructive) { stopAndSaveRide() } label: {
-                        Label("Stop", systemImage: "stop.fill")
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-            }
-            .padding()
+            .edgesIgnoringSafeArea(.bottom)
         }
+        // Sheets & handlers
         .sheet(isPresented: $showingNoteSheet) {
             NoteSheet(noteText: $noteText) {
                 addNote(text: noteText)
@@ -115,21 +136,21 @@ struct RecordRideView: View {
         }
         .navigationTitle("Record Ride")
     }
-
+    
     // MARK: - Actions
-
+    
     private func startRide() {
         ride = Ride(title: "Ride on \(Date.now.formatted(date: .numeric, time: .shortened))")
         recorder.start()
     }
-
+    
     private func stopAndSaveRide() {
         recorder.stop()
         guard let ride else { return }
-
+        
         ride.endedAt = .now
         ride.distanceMeters = recorder.distanceMeters
-
+        
         // Convert livePoints to persisted RoutePoints
         ride.points = recorder.livePoints.map { loc in
             RoutePoint(
@@ -139,19 +160,19 @@ struct RecordRideView: View {
                 speedMps: max(0, loc.speed)
             )
         }
-
+        
         context.insert(ride)
         do { try context.save() } catch { print("Failed to save ride: \(error)") }
         self.ride = nil
     }
-
+    
     private func addNote(text: String) {
         guard let ride else { return }
         let coord = recorder.livePoints.last?.coordinate
         let note = RideNote(text: text, lat: coord?.latitude, lon: coord?.longitude)
         ride.notes.append(note)
     }
-
+    
     private func handlePickedPhoto(_ item: PhotosPickerItem?) async {
         guard let item else { return }
         do {
