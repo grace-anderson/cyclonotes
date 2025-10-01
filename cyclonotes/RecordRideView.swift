@@ -157,14 +157,25 @@ struct RecordRideView: View {
                 // ===== Bottom panel (three rows) =====
                 VStack(alignment: .leading, spacing: 16) {
 
-                    // Row 1 — Stats
+                    // Row 1 — Stats (Distance left, State right)
                     HStack(spacing: 12) {
-                        StatCard(title: "Distance", value: formatDistance(recorder.distanceMeters))
-                            .frame(maxWidth: .infinity)
-                        StatCard(title: "Points", value: "\(recorder.livePoints.count)")
-                            .frame(maxWidth: .infinity)
-                        StatCard(title: "State", value: String(describing: recorder.state).capitalized)
-                            .frame(maxWidth: .infinity)
+                        // Left card: anchors left, grows to the right; left-aligned text
+                        StatCard(
+                            title: "Distance",
+                            value: formatDistance(recorder.distanceMeters),
+                            contentAlignment: .leading,
+                            valueAlignment: .leading
+                        )
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                        // Right card: anchors right, grows to the left; right-aligned text
+                        StatCard(
+                            title: "State",
+                            value: String(describing: recorder.state).capitalized,
+                            contentAlignment: .trailing,
+                            valueAlignment: .trailing
+                        )
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                     }
 
                     // Row 2 — Primary controls
@@ -231,7 +242,7 @@ struct RecordRideView: View {
         // Sheets & handlers
         .sheet(isPresented: $showingNoteSheet) {
             NoteSheet(noteText: $noteText) {
-                addNote(text: noteText)
+                addNote(text: $noteText.wrappedValue)
                 noteText = ""
             }
         }
