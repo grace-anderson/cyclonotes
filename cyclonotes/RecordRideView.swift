@@ -77,6 +77,9 @@ struct RecordRideView: View {
     @State private var noteText = ""
     @State private var selectedPhoto: PhotosPickerItem?
 
+    // Toast
+    @State private var showToast = false
+
     var body: some View {
         GeometryReader { geo in
             VStack(spacing: 0) {
@@ -256,6 +259,25 @@ struct RecordRideView: View {
             }
             .edgesIgnoringSafeArea(.bottom)
         }
+        // ===== Toast (anchored to bottom safe area, nudged up) =====
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if showToast {
+                HStack(spacing: 8) {
+                    Image(systemName: "info.circle.fill")
+                    Text("Go to History to see your saved ride")
+                        .font(.subheadline.weight(.semibold))
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .shadow(radius: 6)
+                .padding(.bottom, 30)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .animation(.easeInOut(duration: 0.3), value: showToast)
+            }
+        }
         // Sheets & handlers
         .sheet(isPresented: $showingNoteSheet) {
             NoteSheet(noteText: $noteText) {
@@ -289,6 +311,7 @@ struct RecordRideView: View {
         isFollowing = false // let the user inspect freely
         guard let ride else { return }
 
+        // Capture metrics before resetting
         ride.endedAt = .now
         ride.distanceMeters = recorder.distanceMeters
         ride.points = recorder.livePoints.map { loc in
@@ -300,6 +323,15 @@ struct RecordRideView: View {
         context.insert(ride)
         do { try context.save() } catch { print("Failed to save ride: \(error)") }
         self.ride = nil
+
+        // ✅ Reset distance AFTER saving so the card shows "0 m"
+        recorder.distanceMeters = 0
+
+        // ✅ Show toast for 2 seconds
+        withAnimation { showToast = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            withAnimation { showToast = false }
+        }
     }
 
     private func addNote(text: String) {
