@@ -1,3 +1,10 @@
+//
+//  RecordRideView.swift
+//  cyclonotes
+//
+//  Created by Helen Anderson on 24/9/2025.
+//
+
 import SwiftUI
 import MapKit
 import PhotosUI
@@ -214,6 +221,8 @@ struct RecordRideView: View {
                                 .lineLimit(1)
                         }
                         .buttonStyle(.borderedProminent)
+                        // ✅ Disable Stop when not recording/paused (i.e., when idle)
+                        .disabled(recorder.state == .idle)
                     }
                     .font(.headline)
 
