@@ -228,17 +228,25 @@ struct RecordRideView: View {
 
                     // Row 3 — Secondary controls
                     HStack(spacing: 12) {
+                        let isInactive = (recorder.state == .idle)
+
                         Button { showingNoteSheet = true } label: {
                             Label("Add Note", systemImage: "note.text")
                                 .frame(maxWidth: .infinity, minHeight: 44)
                                 .lineLimit(1)
                         }
+                        // Disable + visually dim when idle
+                        .disabled(isInactive)
+                        .opacity(isInactive ? 0.45 : 1.0)
 
                         PhotosPicker(selection: $selectedPhoto, matching: .images, photoLibrary: .shared()) {
                             Label("Add Photo", systemImage: "camera")
                                 .frame(maxWidth: .infinity, minHeight: 44)
                                 .lineLimit(1)
                         }
+                        // Disable + visually dim when idle
+                        .disabled(isInactive)
+                        .opacity(isInactive ? 0.45 : 1.0)
                     }
                     .font(.headline)
                 }
