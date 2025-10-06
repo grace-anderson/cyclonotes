@@ -252,31 +252,34 @@ struct RecordRideView: View {
                         .opacity(isInactive ? 0.45 : 1.0)
                     }
                     .font(.headline)
+
+                    // Toast under the secondary controls
+                    if let toastMessage {
+                        HStack {
+                            Spacer()
+                            HStack(spacing: 8) {
+                                Image(systemName: "info.circle.fill")
+                                Text(toastMessage)
+                                    .font(.subheadline.weight(.semibold))
+                                    .multilineTextAlignment(.center)
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .background(.ultraThinMaterial)
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                            .shadow(radius: 6)
+                            Spacer()
+                        }
+                        .padding(.top, 4)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .animation(.easeInOut(duration: 0.3), value: toastMessage)
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 14)
                 .background(.ultraThinMaterial)
             }
             .edgesIgnoringSafeArea(.bottom)
-        }
-        // ===== Toast (anchored to bottom safe area, nudged up) =====
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if let toastMessage {
-                HStack(spacing: 8) {
-                    Image(systemName: "info.circle.fill")
-                    Text(toastMessage)
-                        .font(.subheadline.weight(.semibold))
-                        .multilineTextAlignment(.center)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(.ultraThinMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-                .shadow(radius: 6)
-                .padding(.bottom, 30)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .animation(.easeInOut(duration: 0.3), value: toastMessage)
-            }
         }
         // Sheets & handlers
         .sheet(isPresented: $showingNoteSheet) {
