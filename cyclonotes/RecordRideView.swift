@@ -352,9 +352,14 @@ struct RecordRideView: View {
                 let coord = recorder.livePoints.last?.coordinate
                 let photo = RidePhoto(imageData: data, lat: coord?.latitude, lon: coord?.longitude)
                 ride.photos.append(photo)
+                withAnimation { toastMessage = "Your photo is saved with your ride" }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    withAnimation { toastMessage = nil }
+                }
             }
         } catch {
             print("Photo load error: \(error)")
         }
     }
 }
+
