@@ -64,9 +64,12 @@ struct RideDetailView: View {
             }
 
             HStack(spacing: 16) {
-                StatCard(title: "Distance", value: formatDistance(ride.distanceMeters))
-                StatCard(title: "Duration", value: formatDuration(ride.duration))
-                StatCard(title: "Avg", value: formatSpeed(ride.avgSpeedMps))
+                StatCard(title: "Distance", value: formatDistance(ride.distanceMeters), valueFont: .title3)
+                    .frame(maxWidth: .infinity)
+                StatCard(title: "Duration", value: formatDuration(ride.duration), valueFont: .title3)
+                    .frame(maxWidth: .infinity)
+                StatCard(title: "Average", value: formatSpeed(ride.avgSpeedMps), valueFont: .title3)
+                    .frame(maxWidth: .infinity)
             }
             .padding()
 
@@ -111,3 +114,4 @@ struct RideDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 }
+
