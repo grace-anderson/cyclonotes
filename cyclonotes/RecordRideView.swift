@@ -78,7 +78,7 @@ struct RecordRideView: View {
     @State private var selectedPhoto: PhotosPickerItem?
 
     // Toast
-    @State private var showToast = false
+    @State private var toastMessage: String? = nil
 
     var body: some View {
         GeometryReader { geo in
@@ -261,10 +261,10 @@ struct RecordRideView: View {
         }
         // ===== Toast (anchored to bottom safe area, nudged up) =====
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if showToast {
+            if let toastMessage {
                 HStack(spacing: 8) {
                     Image(systemName: "info.circle.fill")
-                    Text("Go to History to see your saved ride")
+                    Text(toastMessage)
                         .font(.subheadline.weight(.semibold))
                         .multilineTextAlignment(.center)
                 }
@@ -275,7 +275,7 @@ struct RecordRideView: View {
                 .shadow(radius: 6)
                 .padding(.bottom, 30)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
-                .animation(.easeInOut(duration: 0.3), value: showToast)
+                .animation(.easeInOut(duration: 0.3), value: toastMessage)
             }
         }
         // Sheets & handlers
@@ -283,6 +283,10 @@ struct RecordRideView: View {
             NoteSheet(noteText: $noteText) {
                 addNote(text: $noteText.wrappedValue)
                 noteText = ""
+                withAnimation { toastMessage = "Your note is saved with your ride" }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    withAnimation { toastMessage = nil }
+                }
             }
         }
         .onChange(of: selectedPhoto) { _, item in
@@ -327,10 +331,9 @@ struct RecordRideView: View {
         // ✅ Reset distance AFTER saving so the card shows "0 m"
         recorder.distanceMeters = 0
 
-        // ✅ Show toast for 2 seconds
-        withAnimation { showToast = true }
+        withAnimation { toastMessage = "Go to History to see your saved ride" }
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-            withAnimation { showToast = false }
+            withAnimation { toastMessage = nil }
         }
     }
 
