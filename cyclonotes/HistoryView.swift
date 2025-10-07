@@ -36,8 +36,13 @@ struct HistoryView: View {
 
 struct RideDetailView: View {
     let ride: Ride
-    @Environment(\.modelContext) private var context
+    @Environment(\.modelContext) private var modelContext
     @State private var selectedPhoto: RidePhoto? = nil
+
+    @Environment(\.modelContext) private var context
+    @State private var noteBeingEdited: RideNote? = nil
+    @State private var noteToDelete: RideNote? = nil
+    @State private var showDeleteConfirm: Bool = false
 
     var body: some View {
         ScrollView {
@@ -118,6 +123,17 @@ struct RideDetailView: View {
                         .padding(12)
                         .background(.ultraThinMaterial)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .contentShape(Rectangle())
+                        .onTapGesture { noteBeingEdited = n }
+                        .contextMenu {
+                            Button("Edit", systemImage: "pencil") {
+                                noteBeingEdited = n
+                            }
+                            Button("Delete", systemImage: "trash", role: .destructive) {
+                                noteToDelete = n
+                                showDeleteConfirm = true
+                            }
+                        }
                     }
                 }
                 .padding(.horizontal)
@@ -125,12 +141,31 @@ struct RideDetailView: View {
         }
         .navigationTitle(ride.title)
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $noteBeingEdited) { note in
+            EditNoteSheet(note: note) { updatedText in
+                // Persist the change
+                note.text = updatedText
+                do { try modelContext.save() } catch { print("Failed to save edited note: \(error)") }
+            }
+        }
+        .alert("Delete this note?", isPresented: $showDeleteConfirm) {
+            Button("Delete", role: .destructive) {
+                if let target = noteToDelete, let idx = ride.notes.firstIndex(where: { $0 === target }) {
+                    ride.notes.remove(at: idx)
+                    do { try modelContext.save() } catch { print("Failed to delete note: \(error)") }
+                }
+                noteToDelete = nil
+            }
+            Button("Cancel", role: .cancel) { noteToDelete = nil }
+        } message: {
+            Text("This will permanently remove the note from this ride.")
+        }
         .fullScreenCover(item: $selectedPhoto) { photo in
             let startIndex = ride.photos.firstIndex(where: { $0 === photo }) ?? 0
             PhotoPagerFullscreenView(photos: ride.photos, initialIndex: startIndex) { toDelete, _ in
                 if let idx = ride.photos.firstIndex(where: { $0 === toDelete }) {
                     ride.photos.remove(at: idx)
-                    do { try context.save() } catch { print("Failed to delete photo: \(error)") }
+                    do { try modelContext.save() } catch { print("Failed to delete photo: \(error)") }
                 }
                 // Dismiss the fullscreen by clearing selection
                 selectedPhoto = nil
@@ -335,5 +370,51 @@ private struct ZoomableImageView: View {
 
     private func clamp(_ value: CGFloat, min: CGFloat, max: CGFloat) -> CGFloat {
         Swift.max(min, Swift.min(max, value))
+    }
+}
+
+private struct EditNoteSheet: View {
+    let note: RideNote
+    var onSave: (String) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var text: String = ""
+    private let maxChars = 500
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Edit Note").font(.title2).bold()
+                TextField("Update your note… (max 500 characters)", text: $text, axis: .vertical)
+                    .textFieldStyle(.roundedBorder)
+                    .lineLimit(4, reservesSpace: true)
+                    .onChange(of: text) { _, newValue in
+                        if newValue.count > maxChars {
+                            text = String(newValue.prefix(maxChars))
+                        }
+                    }
+                HStack {
+                    Spacer()
+                    let count = text.count
+                    let warning = Double(count) / Double(maxChars) >= 0.9
+                    Text("\(count)/\(maxChars)")
+                        .font(.footnote)
+                        .foregroundStyle(count >= maxChars ? .red : (warning ? .orange : .secondary))
+                }
+                Spacer()
+            }
+            .padding()
+            .onAppear { text = note.text }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        onSave(text)
+                        dismiss()
+                    }
+                    .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || text.count > maxChars)
+                }
+            }
+        }
     }
 }
