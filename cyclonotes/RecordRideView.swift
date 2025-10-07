@@ -257,7 +257,7 @@ struct RecordRideView: View {
                     if let toastMessage {
                         HStack {
                             Spacer()
-                            HStack(spacing: 8) {
+                            VStack(spacing: 6) {
                                 Image(systemName: "info.circle.fill")
                                 Text(toastMessage)
                                     .font(.body.weight(.semibold))
