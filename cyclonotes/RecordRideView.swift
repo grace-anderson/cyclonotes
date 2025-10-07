@@ -260,9 +260,12 @@ struct RecordRideView: View {
                             HStack(spacing: 8) {
                                 Image(systemName: "info.circle.fill")
                                 Text(toastMessage)
-                                    .font(.subheadline.weight(.semibold))
+                                    .font(.body.weight(.semibold))
                                     .multilineTextAlignment(.center)
+                                    .lineLimit(nil)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
+                            .frame(maxWidth: 480)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 12)
                             .background(.ultraThinMaterial)
