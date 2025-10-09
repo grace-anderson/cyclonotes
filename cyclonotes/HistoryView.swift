@@ -40,7 +40,6 @@ struct RideDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var selectedPhoto: RidePhoto? = nil
 
-    @Environment(\.modelContext) private var context
     @State private var noteBeingEdited: RideNote? = nil
     @State private var noteToDelete: RideNote? = nil
     @State private var showDeleteConfirm: Bool = false
@@ -254,7 +253,6 @@ struct RideDetailView: View {
 
 private struct PhotoPagerFullscreenView: View {
     let photos: [RidePhoto]
-    let initialIndex: Int
     var onDelete: (RidePhoto, Int) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var index: Int
@@ -262,7 +260,6 @@ private struct PhotoPagerFullscreenView: View {
 
     init(photos: [RidePhoto], initialIndex: Int, onDelete: @escaping (RidePhoto, Int) -> Void) {
         self.photos = photos
-        self.initialIndex = initialIndex
         self.onDelete = onDelete
         _index = State(initialValue: initialIndex)
     }
@@ -339,6 +336,7 @@ private struct ZoomableImageView: View {
     @State private var lastScale: CGFloat = 1.0
     @State private var offset: CGSize = .zero
     @State private var lastOffset: CGSize = .zero
+    @State private var allowPager: Bool = false
 
     var body: some View {
         GeometryReader { proxy in
@@ -351,8 +349,9 @@ private struct ZoomableImageView: View {
                         .frame(width: size.width, height: size.height)
                         .scaleEffect(scale)
                         .offset(offset)
-                        .gesture(magnificationGesture(ui: ui, containerSize: size))
-                        .gesture(panGesture(ui: ui, containerSize: size))
+                        .contentShape(Rectangle())
+                        .simultaneousGesture(magnificationGesture(ui: ui, containerSize: size))
+                        .gesture(panGesture(ui: ui, containerSize: size), including: (scale > 1 && !allowPager) ? .all : .none)
                         .animation(.spring(response: 0.25, dampingFraction: 0.85), value: scale)
                         .animation(.spring(response: 0.25, dampingFraction: 0.85), value: offset)
                         .background(Color.black)
@@ -392,17 +391,33 @@ private struct ZoomableImageView: View {
     }
 
     private func panGesture(ui: UIImage, containerSize: CGSize) -> some Gesture {
-        DragGesture(minimumDistance: 0)
+        DragGesture(minimumDistance: 12)
             .onChanged { value in
                 guard scale > 1 else { return }
                 let translation = value.translation
-                var tentative = CGSize(width: lastOffset.width + translation.width, height: lastOffset.height + translation.height)
-                tentative = clampedOffset(tentative, ui: ui, containerSize: containerSize)
-                offset = tentative
+                let tentative = CGSize(width: lastOffset.width + translation.width, height: lastOffset.height + translation.height)
+                let clamped = clampedOffset(tentative, ui: ui, containerSize: containerSize)
+                offset = clamped
+                
+                // Edge handoff: if at a horizontal bound and dragging further outward, allow pager
+                let bounds = panBounds(ui: ui, containerSize: containerSize)
+                let maxX = bounds.width
+                if maxX > 0 {
+                    let epsilon: CGFloat = 0.5
+                    let atLeft = clamped.width <= -maxX + epsilon
+                    let atRight = clamped.width >= maxX - epsilon
+                    let dx = translation.width
+                    if (atLeft && dx < 0) || (atRight && dx > 0) {
+                        allowPager = true
+                    } else {
+                        allowPager = false
+                    }
+                }
             }
             .onEnded { _ in
                 guard scale > 1 else { return }
                 lastOffset = offset
+                allowPager = false
             }
     }
 
@@ -496,3 +511,4 @@ private struct EditNoteSheet: View {
         }
     }
 }
+
