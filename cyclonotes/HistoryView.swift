@@ -13,25 +13,56 @@ import PhotosUI
 
 struct HistoryView: View {
     @Query(sort: \Ride.startedAt, order: .reverse) private var rides: [Ride]
+    @Environment(\.modelContext) private var modelContext
+    @State private var pendingDeleteOffsets: IndexSet? = nil
+    @State private var showDeleteConfirm: Bool = false
 
     var body: some View {
         NavigationStack {
-            List(rides) { ride in
-                NavigationLink(value: ride) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(ride.title).font(.headline)
-                        HStack(spacing: 12) {
-                            Text(ride.startedAt, style: .date)
-                            Text("•")
-                            Text(formatDistance(ride.distanceMeters))
+            List {
+                ForEach(rides) { ride in
+                    NavigationLink(value: ride) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(ride.title).font(.headline)
+                            HStack(spacing: 12) {
+                                Text(ride.startedAt, style: .date)
+                                Text("•")
+                                Text(formatDistance(ride.distanceMeters))
+                            }
+                            .foregroundStyle(.secondary)
                         }
-                        .foregroundStyle(.secondary)
                     }
                 }
+                .onDelete(perform: requestDelete)
             }
             .navigationDestination(for: Ride.self) { RideDetailView(ride: $0) }
             .navigationTitle("Ride History")
+            .toolbar { EditButton() }
+            .alert("Delete this ride?", isPresented: $showDeleteConfirm) {
+                Button("Delete", role: .destructive) {
+                    if let offsets = pendingDeleteOffsets {
+                        deleteRides(at: offsets)
+                    }
+                    pendingDeleteOffsets = nil
+                }
+                Button("Cancel", role: .cancel) { pendingDeleteOffsets = nil }
+            } message: {
+                Text("This will permanently remove the ride and its notes/photos.")
+            }
         }
+    }
+
+    private func deleteRides(at offsets: IndexSet) {
+        for index in offsets {
+            let ride = rides[index]
+            modelContext.delete(ride)
+        }
+        do { try modelContext.save() } catch { print("Failed to delete ride(s): \(error)") }
+    }
+    
+    private func requestDelete(at offsets: IndexSet) {
+        pendingDeleteOffsets = offsets
+        showDeleteConfirm = true
     }
 }
 
