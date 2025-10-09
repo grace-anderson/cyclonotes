@@ -23,8 +23,14 @@ struct HistoryView: View {
                 ForEach(rides) { ride in
                     NavigationLink(value: ride) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(displayTitle(for: ride))
-                                .font(.headline)
+                            HStack(spacing: 8) {
+                                if let icon = activityIcon(for: ride) {
+                                    Image(systemName: icon)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Text(displayTitle(for: ride))
+                            }
+                            .font(.headline)
                             HStack(spacing: 12) {
                                 Text(ride.startedAt, style: .date)
                                 Text("•")
@@ -67,11 +73,20 @@ struct HistoryView: View {
     }
     
     private func displayTitle(for ride: Ride) -> String {
-        // If the title starts with "Ride on ", replace with "Activity on ". Otherwise, return as-is.
-        if ride.title.hasPrefix("Ride on ") {
-            return ride.title.replacingOccurrences(of: "Ride on ", with: "Activity on ")
-        }
+        // Titles are saved with the selected activity prefix already (e.g., "Ride on ...")
         return ride.title
+    }
+    
+    private func activityIcon(for ride: Ride) -> String? {
+        guard let a = ride.activity?.lowercased() else { return nil }
+        switch a {
+        case "ride": return "bicycle"
+        case "walk": return "figure.walk"
+        case "hike": return "figure.hiking"
+        case "run":  return "figure.run"
+        case "other activity": return "ellipsis.circle"
+        default: return nil
+        }
     }
 }
 
@@ -291,10 +306,7 @@ struct RideDetailView: View {
     }
 
     private func displayTitle(_ ride: Ride) -> String {
-        if ride.title.hasPrefix("Ride on ") {
-            return ride.title.replacingOccurrences(of: "Ride on ", with: "Activity on ")
-        }
-        return ride.title
+        ride.title
     }
 }
 

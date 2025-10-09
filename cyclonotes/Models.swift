@@ -17,6 +17,7 @@ final class Ride {
     var startedAt: Date
     var endedAt: Date?
     var distanceMeters: Double
+    var activity: String?
 
     @Relationship(deleteRule: .cascade) var points: [RoutePoint]
     @Relationship(deleteRule: .cascade) var notes: [RideNote]
@@ -28,6 +29,7 @@ final class Ride {
         startedAt: Date = .now,
         endedAt: Date? = nil,
         distanceMeters: Double = 0,
+        activity: String? = nil,
         points: [RoutePoint] = [],
         notes: [RideNote] = [],
         photos: [RidePhoto] = []
@@ -37,6 +39,7 @@ final class Ride {
         self.startedAt = startedAt
         self.endedAt = endedAt
         self.distanceMeters = distanceMeters
+        self.activity = activity
         self.points = points
         self.notes = notes
         self.photos = photos

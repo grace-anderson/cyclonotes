@@ -11,6 +11,29 @@ import PhotosUI
 import SwiftData
 import CoreLocation
 
+private enum ActivityType: String, CaseIterable, Identifiable {
+    case ride, walk, hike, run, other
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .ride: return "Ride"
+        case .walk: return "Walk"
+        case .hike: return "Hike"
+        case .run:  return "Run"
+        case .other: return "Other Activity"
+        }
+    }
+    var systemImage: String {
+        switch self {
+        case .ride: return "bicycle"
+        case .walk: return "figure.walk"
+        case .hike: return "figure.hiking"
+        case .run:  return "figure.run"
+        case .other: return "ellipsis.circle"
+        }
+    }
+}
+
 // One-shot location for initial centering (doesn't change RideRecorder)
 final class OneShotLocationProvider: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let manager = CLLocationManager()
@@ -76,6 +99,8 @@ struct RecordRideView: View {
     @State private var showingNoteSheet = false
     @State private var noteText = ""
     @State private var selectedPhoto: PhotosPickerItem?
+    
+    @State private var selectedActivity: ActivityType? = nil
 
     // Toast
     @State private var toastMessage: String? = nil
@@ -150,6 +175,31 @@ struct RecordRideView: View {
                         .shadow(radius: 2)
                     }
                 }
+                .overlay(alignment: .bottom) {
+                    if let toastMessage {
+                        HStack {
+                            Spacer()
+                            HStack(spacing: 8) {
+                                Image(systemName: "info.circle.fill")
+                                    .imageScale(.medium)
+                                Text(toastMessage)
+                                    .font(.footnote.weight(.semibold))
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(2)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(.ultraThinMaterial)
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                            .shadow(radius: 4)
+                            Spacer()
+                        }
+                        .padding(.bottom, 8)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .animation(.easeInOut(duration: 0.3), value: toastMessage)
+                    }
+                }
                 // Optional auto-return to Follow while recording
                 .onReceive(followTimer) { _ in
                     guard recorder.state == .recording, !isFollowing,
@@ -187,6 +237,19 @@ struct RecordRideView: View {
                         )
                         .frame(maxWidth: .infinity, alignment: .trailing)
                     }
+                    
+                    // Row 1.5 — Activity selector
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(ActivityType.allCases) { activity in
+                                ActivityChip(activity: activity, selected: selectedActivity == activity) {
+                                    selectedActivity = activity
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 2)
+                    }
+                    .accessibilityLabel("Choose activity type")
 
                     // Row 2 — Primary controls
                     HStack(spacing: 12) {
@@ -195,15 +258,16 @@ struct RecordRideView: View {
                             case .idle:
                                 Button { startRide() } label: {
                                     Label("Start", systemImage: "play.fill")
-                                        .frame(maxWidth: .infinity, minHeight: 44)
+                                        .frame(maxWidth: .infinity, minHeight: 40)
                                         .lineLimit(1)
                                 }
                                 .buttonStyle(.borderedProminent)
+                                .disabled(selectedActivity == nil)
 
                             case .recording:
                                 Button { recorder.pause() } label: {
                                     Label("Pause", systemImage: "pause.fill")
-                                        .frame(maxWidth: .infinity, minHeight: 44)
+                                        .frame(maxWidth: .infinity, minHeight: 40)
                                         .lineLimit(1)
                                 }
                                 .buttonStyle(.bordered)
@@ -211,7 +275,7 @@ struct RecordRideView: View {
                             case .paused:
                                 Button { recorder.resume() } label: {
                                     Label("Resume", systemImage: "play.fill")
-                                        .frame(maxWidth: .infinity, minHeight: 44)
+                                        .frame(maxWidth: .infinity, minHeight: 40)
                                         .lineLimit(1)
                                 }
                                 .buttonStyle(.bordered)
@@ -220,7 +284,7 @@ struct RecordRideView: View {
 
                         Button(role: .destructive) { stopAndSaveRide() } label: {
                             Label("Stop", systemImage: "stop.fill")
-                                .frame(maxWidth: .infinity, minHeight: 44)
+                                .frame(maxWidth: .infinity, minHeight: 40)
                                 .lineLimit(1)
                         }
                         .buttonStyle(.borderedProminent)
@@ -235,7 +299,7 @@ struct RecordRideView: View {
 
                         Button { showingNoteSheet = true } label: {
                             Label("Add Note", systemImage: "note.text")
-                                .frame(maxWidth: .infinity, minHeight: 44)
+                                .frame(maxWidth: .infinity, minHeight: 40)
                                 .lineLimit(1)
                         }
                         // Disable + visually dim when idle
@@ -244,7 +308,7 @@ struct RecordRideView: View {
 
                         PhotosPicker(selection: $selectedPhoto, matching: .images, photoLibrary: .shared()) {
                             Label("Add Photo", systemImage: "camera")
-                                .frame(maxWidth: .infinity, minHeight: 44)
+                                .frame(maxWidth: .infinity, minHeight: 40)
                                 .lineLimit(1)
                         }
                         // Disable + visually dim when idle
@@ -253,30 +317,6 @@ struct RecordRideView: View {
                     }
                     .font(.headline)
 
-                    // Toast under the secondary controls
-                    if let toastMessage {
-                        HStack {
-                            Spacer()
-                            VStack(spacing: 6) {
-                                Image(systemName: "info.circle.fill")
-                                Text(toastMessage)
-                                    .font(.body.weight(.semibold))
-                                    .multilineTextAlignment(.center)
-                                    .lineLimit(nil)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                            .frame(maxWidth: 480)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
-                            .background(.ultraThinMaterial)
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
-                            .shadow(radius: 6)
-                            Spacer()
-                        }
-                        .padding(.top, 4)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                        .animation(.easeInOut(duration: 0.3), value: toastMessage)
-                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 14)
@@ -289,7 +329,7 @@ struct RecordRideView: View {
             NoteSheet(noteText: $noteText) {
                 addNote(text: $noteText.wrappedValue)
                 noteText = ""
-                withAnimation { toastMessage = "Your note is saved with your ride" }
+                withAnimation { toastMessage = "Your note is saved with your activity" }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                     withAnimation { toastMessage = nil }
                 }
@@ -312,7 +352,9 @@ struct RecordRideView: View {
 
     private func startRide() {
         isFollowing = true // start in Follow mode
-        ride = Ride(title: "Ride on \(Date.now.formatted(date: .numeric, time: .shortened))")
+        let activityPrefix = activityTitlePrefix()
+        let title = "\(activityPrefix) on \(Date.now.formatted(date: .numeric, time: .shortened))"
+        ride = Ride(title: title, activity: selectedActivityString())
         recorder.start()
     }
 
@@ -337,7 +379,9 @@ struct RecordRideView: View {
         // ✅ Reset distance AFTER saving so the card shows "0 m"
         recorder.distanceMeters = 0
 
-        withAnimation { toastMessage = "Go to History to see your saved ride" }
+        selectedActivity = nil
+
+        withAnimation { toastMessage = "Go to History to see your saved activity" }
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             withAnimation { toastMessage = nil }
         }
@@ -358,7 +402,7 @@ struct RecordRideView: View {
                 let coord = recorder.livePoints.last?.coordinate
                 let photo = RidePhoto(imageData: data, lat: coord?.latitude, lon: coord?.longitude)
                 ride.photos.append(photo)
-                withAnimation { toastMessage = "Your photo is saved with your ride" }
+                withAnimation { toastMessage = "Your photo is saved with your activity" }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                     withAnimation { toastMessage = nil }
                 }
@@ -367,5 +411,56 @@ struct RecordRideView: View {
             print("Photo load error: \(error)")
         }
     }
+    
+    private func activityTitlePrefix() -> String {
+        switch selectedActivity {
+        case .ride?: return "Ride"
+        case .walk?: return "Walk"
+        case .hike?: return "Hike"
+        case .run?:  return "Run"
+        case .other?: return "Other activity"
+        case nil: return "Activity"
+        }
+    }
+    
+    private func selectedActivityString() -> String? {
+        switch selectedActivity {
+        case .ride?: return "Ride"
+        case .walk?: return "Walk"
+        case .hike?: return "Hike"
+        case .run?:  return "Run"
+        case .other?: return "Other activity"
+        case nil: return nil
+        }
+    }
 }
 
+private struct ActivityChip: View {
+    let activity: ActivityType
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        let label = HStack(spacing: 6) {
+            Image(systemName: activity.systemImage)
+            Text(activity.title)
+        }
+        .font(.subheadline.weight(.semibold))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+
+        if selected {
+            Button(action: action) { label }
+                .buttonBorderShape(.roundedRectangle(radius: 10))
+                .controlSize(.small)
+                .buttonStyle(.borderedProminent)
+                .tint(.blue)
+        } else {
+            Button(action: action) { label }
+                .buttonBorderShape(.roundedRectangle(radius: 10))
+                .controlSize(.small)
+                .buttonStyle(.bordered)
+                .tint(.secondary)
+        }
+    }
+}
