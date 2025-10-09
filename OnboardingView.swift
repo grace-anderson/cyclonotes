@@ -53,19 +53,27 @@ private struct WelcomePage: View {
         VStack(spacing: 20) {
             Spacer(minLength: 24)
 
-            // Illustration: minimal map path with pins
-            MapPathIllustration()
-                .frame(width: 200, height: 160)
-                .padding(.bottom, 4)
+            // Illustration: 2x2 grid of icons
+            VStack(spacing: 12) {
+                HStack(spacing: 12) {
+                    IconTile(systemName: "bicycle")
+                    IconTile(systemName: "figure.walk")
+                }
+                HStack(spacing: 12) {
+                    IconTile(systemName: "figure.hiking")
+                    IconTile(systemName: "figure.run")
+                }
+            }
+            .frame(width: 220, height: 180)
+            .padding(.bottom, 4)
 
             Text("Welcome to\nCycloNotes")
                 .font(.system(size: 32, weight: .semibold, design: .rounded))
                 .multilineTextAlignment(.center)
 
             VStack(spacing: 4) {
-                Text("Track your rides.")
-                Text("Capture moments along the way")
-                Text("with notes and photos.")
+                Text("Track your bicycle rides, walks, hikes or runs.")
+                Text("Capture moments along the way.")
             }
             .font(.body)
             .foregroundStyle(.secondary)
@@ -138,14 +146,13 @@ private struct RecordPage: View {
             }
             .shadow(color: .black.opacity(0.25), radius: 10, x: 0, y: 8)
 
-            Text("Record Your Ride")
+            Text("Record")
                 .font(.system(size: 28, weight: .semibold, design: .rounded))
                 .multilineTextAlignment(.center)
 
             VStack(spacing: 4) {
                 (Text("Tap ") + Text("Start").foregroundStyle(.blue) + Text(" to begin recording."))
-                Text("Add notes or photos as you ride.")
-                (Text("Tap ") + Text("Stop").foregroundStyle(.blue) + Text(" to save your ride."))
+                Text("Add notes or photos as you ride, walk, hike or run.")
             }
             .font(.body)
             .foregroundStyle(.secondary)
@@ -175,16 +182,15 @@ private struct RelivePage: View {
                 .multilineTextAlignment(.center)
 
             VStack(spacing: 4) {
-                (Text("View your past rides in ") + Text("History").foregroundStyle(.blue) + Text("."))
-                Text("See your route, stats, notes, and photos —")
-                Text("all in one place.")
+                (Text("View your activities in ") + Text("History").foregroundStyle(.blue) + Text("."))
+                Text("See your route, stats, notes and photos - all in one place")
             }
             .font(.body)
             .foregroundStyle(.secondary)
             .multilineTextAlignment(.center)
             .padding(.horizontal, 24)
 
-            Text("Made with ❤️ for riders who love to remember where they’ve been.")
+            Text("Made with ❤️ for those who love remembering where they've been")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -238,6 +244,24 @@ private struct ThumbCard: View {
                 .resizable()
                 .scaledToFit()
                 .frame(width: 44, height: 44)
+                .foregroundStyle(.white)
+        }
+        .shadow(color: .black.opacity(0.25), radius: 10, x: 0, y: 8)
+    }
+}
+
+private struct IconTile: View {
+    let systemName: String
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .frame(width: 100, height: 80)
+            Image(systemName: systemName)
+                .symbolRenderingMode(.hierarchical)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 42, height: 42)
                 .foregroundStyle(.white)
         }
         .shadow(color: .black.opacity(0.25), radius: 10, x: 0, y: 8)

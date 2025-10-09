@@ -23,7 +23,8 @@ struct HistoryView: View {
                 ForEach(rides) { ride in
                     NavigationLink(value: ride) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(ride.title).font(.headline)
+                            Text(displayTitle(for: ride))
+                                .font(.headline)
                             HStack(spacing: 12) {
                                 Text(ride.startedAt, style: .date)
                                 Text("•")
@@ -36,7 +37,7 @@ struct HistoryView: View {
                 .onDelete(perform: requestDelete)
             }
             .navigationDestination(for: Ride.self) { RideDetailView(ride: $0) }
-            .navigationTitle("Ride History")
+            .navigationTitle("History")
             .toolbar { EditButton() }
             .alert("Delete this ride?", isPresented: $showDeleteConfirm) {
                 Button("Delete", role: .destructive) {
@@ -63,6 +64,14 @@ struct HistoryView: View {
     private func requestDelete(at offsets: IndexSet) {
         pendingDeleteOffsets = offsets
         showDeleteConfirm = true
+    }
+    
+    private func displayTitle(for ride: Ride) -> String {
+        // If the title starts with "Ride on ", replace with "Activity on ". Otherwise, return as-is.
+        if ride.title.hasPrefix("Ride on ") {
+            return ride.title.replacingOccurrences(of: "Ride on ", with: "Activity on ")
+        }
+        return ride.title
     }
 }
 
@@ -175,7 +184,7 @@ struct RideDetailView: View {
                 .padding(.horizontal)
             }
         }
-        .navigationTitle(ride.title)
+        .navigationTitle(displayTitle(ride))
         .navigationBarTitleDisplayMode(.inline)
         .overlay(alignment: .bottom) {
             if let toastMessage {
@@ -279,6 +288,13 @@ struct RideDetailView: View {
                 selectedPhoto = nil
             }
         }
+    }
+
+    private func displayTitle(_ ride: Ride) -> String {
+        if ride.title.hasPrefix("Ride on ") {
+            return ride.title.replacingOccurrences(of: "Ride on ", with: "Activity on ")
+        }
+        return ride.title
     }
 }
 
