@@ -9,6 +9,7 @@ import Foundation
 import SwiftUI
 import MapKit
 import SwiftData
+import PhotosUI
 
 struct HistoryView: View {
     @Query(sort: \Ride.startedAt, order: .reverse) private var rides: [Ride]
@@ -43,6 +44,11 @@ struct RideDetailView: View {
     @State private var noteBeingEdited: RideNote? = nil
     @State private var noteToDelete: RideNote? = nil
     @State private var showDeleteConfirm: Bool = false
+    
+    @State private var showingAddNoteSheet: Bool = false
+    @State private var newNoteText: String = ""
+    @State private var pickerItem: PhotosPickerItem? = nil
+    @State private var toastMessage: String? = nil
 
     var body: some View {
         ScrollView {
@@ -141,11 +147,83 @@ struct RideDetailView: View {
         }
         .navigationTitle(ride.title)
         .navigationBarTitleDisplayMode(.inline)
+        .overlay(alignment: .bottom) {
+            if let toastMessage {
+                HStack {
+                    Spacer()
+                    VStack(spacing: 6) {
+                        Image(systemName: "info.circle.fill")
+                        Text(toastMessage)
+                            .font(.body.weight(.semibold))
+                            .multilineTextAlignment(.center)
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: 480)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .shadow(radius: 6)
+                    .padding(.bottom, 16)
+                    Spacer()
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .animation(.easeInOut(duration: 0.3), value: toastMessage)
+            }
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button {
+                    showingAddNoteSheet = true
+                } label: {
+                    Label("Add Note", systemImage: "note.text")
+                }
+
+                PhotosPicker(selection: $pickerItem, matching: .images, photoLibrary: .shared()) {
+                    Label("Add Photo", systemImage: "camera")
+                }
+            }
+        }
         .sheet(item: $noteBeingEdited) { note in
             EditNoteSheet(note: note) { updatedText in
                 // Persist the change
                 note.text = updatedText
                 do { try modelContext.save() } catch { print("Failed to save edited note: \(error)") }
+            }
+        }
+        .sheet(isPresented: $showingAddNoteSheet) {
+            NoteSheet(noteText: $newNoteText) {
+                let note = RideNote(text: newNoteText)
+                ride.notes.append(note)
+                do { try modelContext.save() } catch { print("Failed to save new note: \(error)") }
+                newNoteText = ""
+                withAnimation { toastMessage = "Your note is saved" }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    withAnimation { toastMessage = nil }
+                }
+            }
+        }
+        .onChange(of: pickerItem) { _, item in
+            guard let item else { return }
+            Task {
+                do {
+                    if let data = try await item.loadTransferable(type: Data.self) {
+                        let photo = RidePhoto(imageData: data)
+                        ride.photos.append(photo)
+                        do { try modelContext.save() } catch { print("Failed to save new photo: \(error)") }
+                        await MainActor.run {
+                            withAnimation { toastMessage = "Your photo is added" }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                withAnimation { toastMessage = nil }
+                            }
+                        }
+                    }
+                } catch {
+                    print("Photo load error: \(error)")
+                }
+                // Reset selection so the picker can be used again immediately
+                await MainActor.run { pickerItem = nil }
             }
         }
         .alert("Delete this note?", isPresented: $showDeleteConfirm) {
