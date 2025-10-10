@@ -13,7 +13,7 @@ import CoreLocation
 struct RootView: View {
     @StateObject private var recorder = ActivityRecorder()
     @AppStorage("didCompleteOnboarding") private var didCompleteOnboarding: Bool = false
-    @State private var selectedTab: Int = 0
+    @AppStorage("selectedTab") private var selectedTab: Int = 0
     @State private var showOnboarding: Bool = false
     @State private var didSendLaunchSignal: Bool = false
 
@@ -27,6 +27,10 @@ struct RootView: View {
             HistoryView()
                 .tabItem { Label("History", systemImage: "clock") }
                 .tag(1)
+            
+            FeedbackView()
+                .tabItem { Label("Feedback", systemImage: "envelope.fill") }
+                .tag(2)
         }
         .onAppear {
             // Request authorization and log failures if any
@@ -68,3 +72,4 @@ struct RootView: View {
         }
     }
 }
+

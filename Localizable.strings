@@ -1,0 +1,17 @@
+/* English Localizable.strings */
+"feedback.title" = "Send Feedback";
+"feedback.topic.label" = "Feedback topic";
+"feedback.description.label" = "Tell us about your experience with the CycloNotes app";
+"feedback.addPhotos" = "Add photos";
+"feedback.send" = "Send email";
+"feedback.limit.photos" = "You can attach up to 5 photos";
+"feedback.limit.text" = "%d/%d";
+"feedback.warn.largeAttachments" = "Your email app may reject large attachments. Consider sending fewer photos.";
+"feedback.error.attach" = "Couldn't attach one photo.";
+"feedback.toast.notSent" = "Email not sent";
+"feedback.diagnostics.footer" = "We’ll attach basic device/app info to help us troubleshoot.";
+"feedback.placeholder.topic" = "Short title (e.g. Map didn’t load)";
+"feedback.placeholder.description" = "What happened? Steps to reproduce? What did you expect?";
+"feedback.accessibility.removePhoto" = "Remove photo %d";
+"feedback.fallback.photos.ios15" = "Photo attachments require a newer iOS version.";
+"feedback.createEmail" = "Create email";
