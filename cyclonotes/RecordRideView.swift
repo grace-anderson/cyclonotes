@@ -246,8 +246,19 @@ struct RecordRideView: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
                             ForEach(ActivityType.allCases) { activity in
-                                ActivityChip(activity: activity, selected: selectedActivity == activity) {
-                                    selectedActivity = activity
+                                ActivityChip(
+                                    activity: activity,
+                                    selected: selectedActivity == activity,
+                                    enabled: true
+                                ) {
+                                    if recorder.state == .idle {
+                                        selectedActivity = activity
+                                    } else {
+                                        withAnimation { toastMessage = "Stop recording to change activity" }
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                            withAnimation { toastMessage = nil }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -549,6 +560,7 @@ struct RecordRideView: View {
 private struct ActivityChip: View {
     let activity: ActivityType
     let selected: Bool
+    let enabled: Bool
     let action: () -> Void
 
     var body: some View {
@@ -566,12 +578,16 @@ private struct ActivityChip: View {
                 .controlSize(.small)
                 .buttonStyle(.borderedProminent)
                 .tint(.blue)
+                .disabled(!enabled)
+                .opacity(enabled ? 1.0 : 0.45)
         } else {
             Button(action: action) { label }
                 .buttonBorderShape(.roundedRectangle(radius: 10))
                 .controlSize(.small)
                 .buttonStyle(.bordered)
                 .tint(.secondary)
+                .disabled(!enabled)
+                .opacity(enabled ? 1.0 : 0.45)
         }
     }
 }
