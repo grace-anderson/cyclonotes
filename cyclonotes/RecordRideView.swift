@@ -10,6 +10,7 @@ import MapKit
 import PhotosUI
 import SwiftData
 import CoreLocation
+import TelemetryDeck
 
 private enum ActivityType: String, CaseIterable, Identifiable {
     case ride, walk, hike, run, other
@@ -77,6 +78,8 @@ struct RecordRideView: View {
     @Environment(\.scenePhase) private var scenePhase   // foreground/background
 
     @State private var ride: Ride?   // active ride (not saved until Stop)
+    @State private var rideStartDate: Date? = nil
+    @State private var abandonmentSignalled: Bool = false
 
     // Camera-driven Map (iOS 17+)
     @State private var cameraPosition: MapCameraPosition = .region(
@@ -91,6 +94,7 @@ struct RecordRideView: View {
     @State private var lastMapInteractionAt: Date? = nil
     private let followTimeoutSeconds: TimeInterval = 12
     private let followTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    private let abandonThresholdSeconds: TimeInterval = 180 // 3 minutes
 
     // Initial centering
     @StateObject private var oneShotLocator = OneShotLocationProvider()
@@ -343,6 +347,24 @@ struct RecordRideView: View {
             if newPhase == .active {
                 didCenterOnLaunch = false
                 oneShotLocator.request()
+            } else if newPhase == .inactive || newPhase == .background {
+                // Potential abandonment: user left the app during an active recording soon after starting
+                if recorder.state != .idle, let start = rideStartDate, abandonmentSignalled == false {
+                    let duration = Date().timeIntervalSince(start)
+                    if duration < abandonThresholdSeconds {
+                        let activity = selectedActivityString() ?? "Unknown"
+                        let distance = recorder.distanceMeters
+                        let payload = Analytics.merged(with: [
+                            "activity": activity,
+                            "distanceMeters": String(format: "%.2f", distance),
+                            "durationSeconds": String(format: "%.2f", duration),
+                            "state": String(describing: recorder.state),
+                            "thresholdSeconds": String(format: "%.0f", abandonThresholdSeconds)
+                        ])
+                        TelemetryDeck.signal("recordingAbandoned", parameters: payload)
+                        abandonmentSignalled = true
+                    }
+                }
             }
         }
         .navigationTitle("Record Ride")
@@ -351,7 +373,15 @@ struct RecordRideView: View {
     // MARK: - Actions
 
     private func startRide() {
-        isFollowing = true // start in Follow mode
+        let activity = selectedActivityString() ?? "Unknown"
+        let iso = ISO8601DateFormatter().string(from: Date())
+        let payload = Analytics.merged(with: [
+            "activity": activity,
+            "timestamp": iso
+        ])
+        TelemetryDeck.signal("recordTapped", parameters: payload)
+        rideStartDate = Date()
+        abandonmentSignalled = false
         let activityPrefix = activityTitlePrefix()
         let title = "\(activityPrefix) on \(Date.now.formatted(date: .numeric, time: .shortened))"
         ride = Ride(title: title, activity: selectedActivityString())
@@ -359,6 +389,28 @@ struct RecordRideView: View {
     }
 
     private func stopAndSaveRide() {
+        let activity = selectedActivityString() ?? "Unknown"
+        let distance = recorder.distanceMeters
+        let duration: TimeInterval = {
+            if let start = rideStartDate { return Date().timeIntervalSince(start) }
+            return 0
+        }()
+        let avgSpeed = duration > 0 ? distance / duration : 0
+        let pointsCount = recorder.livePoints.count
+        let notesCount = ride?.notes.count ?? 0
+        let photosCount = ride?.photos.count ?? 0
+
+        let payload = Analytics.merged(with: [
+            "activity": activity,
+            "distanceMeters": String(format: "%.2f", distance),
+            "durationSeconds": String(format: "%.2f", duration),
+            "avgSpeedMps": String(format: "%.3f", avgSpeed),
+            "pointsCount": String(pointsCount),
+            "notesCount": String(notesCount),
+            "photosCount": String(photosCount)
+        ])
+        TelemetryDeck.signal("stopTapped", parameters: payload)
+        abandonmentSignalled = false
         recorder.stop()
         isFollowing = false // let the user inspect freely
         guard let ride else { return }
@@ -375,6 +427,7 @@ struct RecordRideView: View {
         context.insert(ride)
         do { try context.save() } catch { print("Failed to save ride: \(error)") }
         self.ride = nil
+        rideStartDate = nil
 
         // ✅ Reset distance AFTER saving so the card shows "0 m"
         recorder.distanceMeters = 0
@@ -388,27 +441,85 @@ struct RecordRideView: View {
     }
 
     private func addNote(text: String) {
-        guard let ride else { return }
+        guard let ride else {
+            let payload = Analytics.merged(with: [
+                "error": "noActiveRide",
+                "activity": selectedActivityString() ?? "Unknown",
+                "distanceMeters": String(format: "%.2f", recorder.distanceMeters)
+            ])
+            TelemetryDeck.signal("noteAddFailed", parameters: payload)
+            return
+        }
         let coord = recorder.livePoints.last?.coordinate
         let note = RideNote(text: text, lat: coord?.latitude, lon: coord?.longitude)
         ride.notes.append(note)
+        
+        let activity = selectedActivityString() ?? "Unknown"
+        let distance = recorder.distanceMeters
+        let notesCount = ride.notes.count
+        let hasCoordinate = (recorder.livePoints.last?.coordinate != nil)
+        let notePayload = Analytics.merged(with: [
+            "activity": activity,
+            "distanceMeters": String(format: "%.2f", distance),
+            "notesCount": String(notesCount),
+            "hasCoordinate": hasCoordinate ? "true" : "false"
+        ])
+        TelemetryDeck.signal("noteAdded", parameters: notePayload)
     }
 
     private func handlePickedPhoto(_ item: PhotosPickerItem?) async {
         guard let item else { return }
         do {
             if let data = try await item.loadTransferable(type: Data.self) {
-                guard let ride else { return }
+                guard let ride else {
+                    let payload = Analytics.merged(with: [
+                        "error": "noActiveRide",
+                        "activity": selectedActivityString() ?? "Unknown",
+                        "distanceMeters": String(format: "%.2f", recorder.distanceMeters)
+                    ])
+                    TelemetryDeck.signal("photoAddFailed", parameters: payload)
+                    return
+                }
                 let coord = recorder.livePoints.last?.coordinate
                 let photo = RidePhoto(imageData: data, lat: coord?.latitude, lon: coord?.longitude)
                 ride.photos.append(photo)
+                
+                let activity = selectedActivityString() ?? "Unknown"
+                let distance = recorder.distanceMeters
+                let photosCount = ride.photos.count
+                let hasCoordinate = (recorder.livePoints.last?.coordinate != nil)
+                let photoPayload = Analytics.merged(with: [
+                    "activity": activity,
+                    "distanceMeters": String(format: "%.2f", distance),
+                    "photosCount": String(photosCount),
+                    "hasCoordinate": hasCoordinate ? "true" : "false"
+                ])
+                TelemetryDeck.signal("photoAdded", parameters: photoPayload)
+                
                 withAnimation { toastMessage = "Your photo is saved with your activity" }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                     withAnimation { toastMessage = nil }
                 }
             }
+            else {
+                let payload = Analytics.merged(with: [
+                    "error": "noData",
+                    "activity": selectedActivityString() ?? "Unknown",
+                    "distanceMeters": String(format: "%.2f", recorder.distanceMeters)
+                ])
+                TelemetryDeck.signal("photoAddFailed", parameters: payload)
+            }
         } catch {
             print("Photo load error: \(error)")
+            let ns = error as NSError
+            let payload = Analytics.merged(with: [
+                "error": ns.localizedDescription,
+                "errorDomain": ns.domain,
+                "errorCode": String(ns.code),
+                "activity": selectedActivityString() ?? "Unknown",
+                "distanceMeters": String(format: "%.2f", recorder.distanceMeters)
+            ])
+            TelemetryDeck.signal("photoAddFailed", parameters: payload)
         }
     }
     
@@ -464,3 +575,4 @@ private struct ActivityChip: View {
         }
     }
 }
+

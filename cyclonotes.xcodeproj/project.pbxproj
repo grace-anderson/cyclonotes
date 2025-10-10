@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		7981777A2E9749B6001A527D /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 798177792E9749B6001A527D /* OnboardingView.swift */; };
+		798177A72E98AE3E001A527D /* TelemetryClient in Frameworks */ = {isa = PBXBuildFile; productRef = 798177A62E98AE3E001A527D /* TelemetryClient */; };
+		798177A92E98AE3E001A527D /* TelemetryDeck in Frameworks */ = {isa = PBXBuildFile; productRef = 798177A82E98AE3E001A527D /* TelemetryDeck */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -28,6 +30,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				798177A72E98AE3E001A527D /* TelemetryClient in Frameworks */,
+				798177A92E98AE3E001A527D /* TelemetryDeck in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -71,6 +75,8 @@
 			);
 			name = cyclonotes;
 			packageProductDependencies = (
+				798177A62E98AE3E001A527D /* TelemetryClient */,
+				798177A82E98AE3E001A527D /* TelemetryDeck */,
 			);
 			productName = cyclonotes;
 			productReference = 7941E5A12E84025E004D454C /* cyclonotes.app */;
@@ -100,6 +106,9 @@
 			);
 			mainGroup = 7941E5982E84025E004D454C;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				798177A52E98AE3E001A527D /* XCRemoteSwiftPackageReference "SwiftSDK" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 7941E5A22E84025E004D454C /* Products */;
 			projectDirPath = "";
@@ -339,6 +348,30 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		798177A52E98AE3E001A527D /* XCRemoteSwiftPackageReference "SwiftSDK" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/TelemetryDeck/SwiftSDK";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.9.4;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		798177A62E98AE3E001A527D /* TelemetryClient */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 798177A52E98AE3E001A527D /* XCRemoteSwiftPackageReference "SwiftSDK" */;
+			productName = TelemetryClient;
+		};
+		798177A82E98AE3E001A527D /* TelemetryDeck */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 798177A52E98AE3E001A527D /* XCRemoteSwiftPackageReference "SwiftSDK" */;
+			productName = TelemetryDeck;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 7941E5992E84025E004D454C /* Project object */;
 }

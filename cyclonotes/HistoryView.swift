@@ -10,6 +10,7 @@ import SwiftUI
 import MapKit
 import SwiftData
 import PhotosUI
+import TelemetryDeck
 
 struct HistoryView: View {
     @Query(sort: \Ride.startedAt, order: .reverse) private var rides: [Ride]
@@ -61,9 +62,15 @@ struct HistoryView: View {
 
     private func deleteRides(at offsets: IndexSet) {
         for index in offsets {
+
             let ride = rides[index]
             modelContext.delete(ride)
         }
+        let deletedCount = offsets.count
+        let payload = Analytics.merged(with: [
+            "deletedCount": String(deletedCount)
+        ])
+        TelemetryDeck.signal("historyItemDeleted", parameters: payload)
         do { try modelContext.save() } catch { print("Failed to delete ride(s): \(error)") }
     }
     
@@ -250,7 +257,28 @@ struct RideDetailView: View {
             NoteSheet(noteText: $newNoteText) {
                 let note = RideNote(text: newNoteText)
                 ride.notes.append(note)
-                do { try modelContext.save() } catch { print("Failed to save new note: \(error)") }
+                do {
+                    try modelContext.save()
+                } catch {
+                    print("Failed to save new note: \(error)")
+                    let ns = error as NSError
+                    let payload = Analytics.merged(with: [
+                        "rideId": ride.id.uuidString,
+                        "activity": ride.activity ?? "Unknown",
+                        "distanceMeters": String(format: "%.2f", ride.distanceMeters),
+                        "error": ns.localizedDescription,
+                        "errorDomain": ns.domain,
+                        "errorCode": String(ns.code)
+                    ])
+                    TelemetryDeck.signal("savedRideNoteAddFailed", parameters: payload)
+                }
+                let payloadNote = Analytics.merged(with: [
+                    "rideId": ride.id.uuidString,
+                    "activity": ride.activity ?? "Unknown",
+                    "distanceMeters": String(format: "%.2f", ride.distanceMeters),
+                    "notesCount": String(ride.notes.count)
+                ])
+                TelemetryDeck.signal("savedRideNoteAdded", parameters: payloadNote)
                 newNoteText = ""
                 withAnimation { toastMessage = "Your note is saved" }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
@@ -265,19 +293,67 @@ struct RideDetailView: View {
                     if let data = try await item.loadTransferable(type: Data.self) {
                         let photo = RidePhoto(imageData: data)
                         ride.photos.append(photo)
-                        do { try modelContext.save() } catch { print("Failed to save new photo: \(error)") }
-                        await MainActor.run {
-                            withAnimation { toastMessage = "Your photo is added" }
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                                withAnimation { toastMessage = nil }
-                            }
+                        do {
+                            try modelContext.save()
+                        } catch {
+                            print("Failed to save new photo: \(error)")
+                            let ns = error as NSError
+                            let payload = Analytics.merged(with: [
+                                "rideId": ride.id.uuidString,
+                                "activity": ride.activity ?? "Unknown",
+                                "distanceMeters": String(format: "%.2f", ride.distanceMeters),
+                                "error": ns.localizedDescription,
+                                "errorDomain": ns.domain,
+                                "errorCode": String(ns.code)
+                            ])
+                            TelemetryDeck.signal("savedRidePhotoAddFailed", parameters: payload)
                         }
+                    }
+                    else {
+                        let payload = Analytics.merged(with: [
+                            "rideId": ride.id.uuidString,
+                            "activity": ride.activity ?? "Unknown",
+                            "distanceMeters": String(format: "%.2f", ride.distanceMeters),
+                            "error": "noData"
+                        ])
+                        TelemetryDeck.signal("savedRidePhotoAddFailed", parameters: payload)
                     }
                 } catch {
                     print("Photo load error: \(error)")
+                    let ns = error as NSError
+                    let payload = Analytics.merged(with: [
+                        "rideId": ride.id.uuidString,
+                        "activity": ride.activity ?? "Unknown",
+                        "distanceMeters": String(format: "%.2f", ride.distanceMeters),
+                        "error": ns.localizedDescription,
+                        "errorDomain": ns.domain,
+                        "errorCode": String(ns.code)
+                    ])
+                    TelemetryDeck.signal("savedRidePhotoAddFailed", parameters: payload)
                 }
                 // Reset selection so the picker can be used again immediately
                 await MainActor.run { pickerItem = nil }
+            }
+        }
+        .onAppear {
+            let iso = ISO8601DateFormatter().string(from: ride.startedAt)
+            let payload = Analytics.merged(with: [
+                "rideId": ride.id.uuidString,
+                "activity": ride.activity ?? "Unknown",
+                "distanceMeters": String(format: "%.2f", ride.distanceMeters),
+                "startedAt": iso
+            ])
+            TelemetryDeck.signal("activityDetailViewed", parameters: payload)
+        }
+        .fullScreenCover(item: $selectedPhoto) { photo in
+            let startIndex = ride.photos.firstIndex(where: { $0 === photo }) ?? 0
+            PhotoPagerFullscreenView(photos: ride.photos, initialIndex: startIndex) { toDelete, _ in
+                if let idx = ride.photos.firstIndex(where: { $0 === toDelete }) {
+                    ride.photos.remove(at: idx)
+                    do { try modelContext.save() } catch { print("Failed to delete photo: \(error)") }
+                }
+                // Dismiss the fullscreen by clearing selection
+                selectedPhoto = nil
             }
         }
         .alert("Delete this note?", isPresented: $showDeleteConfirm) {
@@ -291,17 +367,6 @@ struct RideDetailView: View {
             Button("Cancel", role: .cancel) { noteToDelete = nil }
         } message: {
             Text("This will permanently remove the note from this ride.")
-        }
-        .fullScreenCover(item: $selectedPhoto) { photo in
-            let startIndex = ride.photos.firstIndex(where: { $0 === photo }) ?? 0
-            PhotoPagerFullscreenView(photos: ride.photos, initialIndex: startIndex) { toDelete, _ in
-                if let idx = ride.photos.firstIndex(where: { $0 === toDelete }) {
-                    ride.photos.remove(at: idx)
-                    do { try modelContext.save() } catch { print("Failed to delete photo: \(error)") }
-                }
-                // Dismiss the fullscreen by clearing selection
-                selectedPhoto = nil
-            }
         }
     }
 
