@@ -448,7 +448,7 @@ private struct PhotoPagerFullscreenView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This will permanently remove the photo from this ride.")
+            Text("This will permanently remove the photo from this activity.")
         }
     }
 }
