@@ -186,6 +186,18 @@ struct RideDetailView: View {
                                 }
                             }
                             .foregroundStyle(.secondary)
+                            HStack {
+                                Spacer()
+                                Button(role: .destructive) {
+                                    noteToDelete = n
+                                    showDeleteConfirm = true
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                        .labelStyle(.iconOnly)
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(.secondary)
+                            }
                         }
                         .padding(12)
                         .background(.ultraThinMaterial)
@@ -199,6 +211,14 @@ struct RideDetailView: View {
                             Button("Delete", systemImage: "trash", role: .destructive) {
                                 noteToDelete = n
                                 showDeleteConfirm = true
+                            }
+                        }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                noteToDelete = n
+                                showDeleteConfirm = true
+                            } label: {
+                                Label("Delete", systemImage: "trash")
                             }
                         }
                     }
@@ -366,7 +386,7 @@ struct RideDetailView: View {
             }
             Button("Cancel", role: .cancel) { noteToDelete = nil }
         } message: {
-            Text("This will permanently remove the note from this ride.")
+            Text("This will permanently remove the note from this activity.")
         }
     }
 
