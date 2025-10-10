@@ -46,7 +46,7 @@ struct HistoryView: View {
             .navigationDestination(for: Ride.self) { RideDetailView(ride: $0) }
             .navigationTitle("History")
             .toolbar { EditButton() }
-            .alert("Delete this ride?", isPresented: $showDeleteConfirm) {
+            .alert("Delete this \(deletionNoun())?", isPresented: $showDeleteConfirm) {
                 Button("Delete", role: .destructive) {
                     if let offsets = pendingDeleteOffsets {
                         deleteRides(at: offsets)
@@ -55,7 +55,7 @@ struct HistoryView: View {
                 }
                 Button("Cancel", role: .cancel) { pendingDeleteOffsets = nil }
             } message: {
-                Text("This will permanently remove the ride and its notes/photos.")
+                Text("This will permanently remove the \(deletionNoun()) and its notes/photos.")
             }
         }
     }
@@ -94,6 +94,22 @@ struct HistoryView: View {
         case "other activity": return "ellipsis.circle"
         default: return nil
         }
+    }
+
+    private func deletionNoun() -> String {
+        guard let offsets = pendingDeleteOffsets else { return "activity" }
+        if offsets.count > 1 { return "activities" }
+        if let index = offsets.first, rides.indices.contains(index) {
+            let a = rides[index].activity?.lowercased() ?? "activity"
+            switch a {
+            case "ride": return "ride"
+            case "walk": return "walk"
+            case "hike": return "hike"
+            case "run":  return "run"
+            default:      return "activity"
+            }
+        }
+        return "activity"
     }
 }
 
