@@ -11,7 +11,7 @@ import TelemetryDeck
 import CoreLocation
 
 struct RootView: View {
-    @StateObject private var recorder = RideRecorder()
+    @StateObject private var recorder = ActivityRecorder()
     @AppStorage("didCompleteOnboarding") private var didCompleteOnboarding: Bool = false
     @State private var selectedTab: Int = 0
     @State private var showOnboarding: Bool = false
@@ -19,7 +19,7 @@ struct RootView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            RecordRideView()
+            ActivityRideView()
                 .tabItem { Label("Record", systemImage: "dot.radiowaves.left.and.right") }
                 .environmentObject(recorder)
                 .tag(0)

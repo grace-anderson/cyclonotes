@@ -8,7 +8,7 @@
 import Foundation
 import CoreLocation
 
-final class RideRecorder: NSObject, ObservableObject {
+final class ActivityRecorder: NSObject, ObservableObject {
     enum State { case idle, recording, paused }
 
     @Published var state: State = .idle
@@ -66,7 +66,7 @@ final class RideRecorder: NSObject, ObservableObject {
     }
 }
 
-extension RideRecorder: CLLocationManagerDelegate {
+extension ActivityRecorder: CLLocationManagerDelegate {
 
     // iOS 14+: gets called whenever auth changes
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {

@@ -72,8 +72,8 @@ final class OneShotLocationProvider: NSObject, ObservableObject, CLLocationManag
     }
 }
 
-struct RecordRideView: View {
-    @EnvironmentObject private var recorder: RideRecorder
+struct ActivityRideView: View {
+    @EnvironmentObject private var recorder: ActivityRecorder
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var scenePhase   // foreground/background
 
