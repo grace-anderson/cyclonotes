@@ -2,6 +2,7 @@ import SwiftUI
 import UIKit
 import MessageUI
 import PhotosUI
+import TelemetryDeck
 
 // MARK: - View Model
 
@@ -279,6 +280,13 @@ struct FeedbackView: View {
 
     private func sendTapped() {
         Task {
+            let payload = Analytics.merged(with: [
+                "hasTopic": vm.topic.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "false" : "true",
+                "hasDetails": vm.details.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "false" : "true",
+                "imagesCount": String(vm.images.count)
+            ])
+            TelemetryDeck.signal("feedbackCreateEmailTapped", parameters: payload)
+
             vm.isProcessing = true
             defer { vm.isProcessing = false }
 
@@ -380,3 +388,4 @@ struct ShareSheetView: UIViewControllerRepresentable {
 #Preview {
     FeedbackView()
 }
+
