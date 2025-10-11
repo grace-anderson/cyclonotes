@@ -128,8 +128,11 @@ struct RideDetailView: View {
     @State private var pickerItem: PhotosPickerItem? = nil
     @State private var toastMessage: String? = nil
 
-    @State private var showingShareSheet: Bool = false
-    @State private var shareItems: [Any] = []
+    private struct SharePayload: Identifiable {
+        let id = UUID()
+        let items: [Any]
+    }
+    @State private var sharePayload: SharePayload? = nil
 
     var body: some View {
         ScrollView {
@@ -350,9 +353,9 @@ struct RideDetailView: View {
                 }
             }
         }
-        .sheet(isPresented: $showingShareSheet) {
-            ShareSheetView(items: shareItems) { _ in
-                showingShareSheet = false
+        .sheet(item: $sharePayload) { payload in
+            ShareSheetView(items: payload.items) { _ in
+                sharePayload = nil
             }
         }
         .onChange(of: pickerItem) { _, item in
@@ -453,8 +456,7 @@ struct RideDetailView: View {
         
         if let image = await generateShareImage() {
             await MainActor.run {
-                shareItems = [image]
-                showingShareSheet = true
+                sharePayload = SharePayload(items: [image])
             }
         }
     }
