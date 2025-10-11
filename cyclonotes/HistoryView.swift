@@ -11,6 +11,7 @@ import MapKit
 import SwiftData
 import PhotosUI
 import TelemetryDeck
+import UIKit
 
 struct HistoryView: View {
     @Query(sort: \Ride.startedAt, order: .reverse) private var rides: [Ride]
@@ -127,8 +128,48 @@ struct RideDetailView: View {
     @State private var pickerItem: PhotosPickerItem? = nil
     @State private var toastMessage: String? = nil
 
+    @State private var showingShareSheet: Bool = false
+    @State private var shareItems: [Any] = []
+
     var body: some View {
         ScrollView {
+            // Control row under the title
+            HStack(spacing: 16) {
+                // Add Note button
+                Button { showingAddNoteSheet = true } label: {
+                    Image(systemName: "note.text")
+                        .font(.system(size: 20, weight: .semibold))
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))
+                }
+                .accessibilityLabel("Add Note")
+
+                // Add Photo button (moved from toolbar)
+                PhotosPicker(selection: $pickerItem, matching: .images, photoLibrary: .shared()) {
+                    Image(systemName: "camera")
+                        .font(.system(size: 20, weight: .semibold))
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))
+                }
+                .accessibilityLabel("Add Photo")
+
+                Spacer()
+
+                // Share button
+                Button { Task { await shareRide() } } label: {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 20, weight: .semibold))
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))
+                }
+                .accessibilityLabel("Share")
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            
             if let r = ride.coordinateBounds {
                 Map(initialPosition: .region(r)) {
                     let coords = ride.points.map {
@@ -269,19 +310,6 @@ struct RideDetailView: View {
                 .animation(.easeInOut(duration: 0.3), value: toastMessage)
             }
         }
-        .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                Button {
-                    showingAddNoteSheet = true
-                } label: {
-                    Label("Add Note", systemImage: "note.text")
-                }
-
-                PhotosPicker(selection: $pickerItem, matching: .images, photoLibrary: .shared()) {
-                    Label("Add Photo", systemImage: "camera")
-                }
-            }
-        }
         .sheet(item: $noteBeingEdited) { note in
             EditNoteSheet(note: note) { updatedText in
                 // Persist the change
@@ -320,6 +348,11 @@ struct RideDetailView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                     withAnimation { toastMessage = nil }
                 }
+            }
+        }
+        .sheet(isPresented: $showingShareSheet) {
+            ShareSheetView(items: shareItems) { _ in
+                showingShareSheet = false
             }
         }
         .onChange(of: pickerItem) { _, item in
@@ -408,6 +441,165 @@ struct RideDetailView: View {
 
     private func displayTitle(_ ride: Ride) -> String {
         ride.title
+    }
+
+    private func shareRide() async {
+        let payload = Analytics.merged(with: [
+            "rideId": ride.id.uuidString,
+            "photosCount": String(ride.photos.count),
+            "notesCount": String(ride.notes.count)
+        ])
+        TelemetryDeck.signal("rideShareTapped", parameters: payload)
+        
+        if let image = await generateShareImage() {
+            await MainActor.run {
+                shareItems = [image]
+                showingShareSheet = true
+            }
+        }
+    }
+
+    private func generateShareImage() async -> UIImage? {
+        let targetWidth: CGFloat = 1080
+        let margin: CGFloat = 40
+        let spacing: CGFloat = 16
+        let title = ride.title
+        let distance = formatDistance(ride.distanceMeters)
+        let duration = formatDuration(ride.duration)
+        let avg = formatSpeed(ride.avgSpeedMps)
+
+        // Build map snapshot (optional height 540)
+        let mapHeight: CGFloat = 540
+        let mapImage = await snapshotMapImage(size: CGSize(width: targetWidth - 2*margin, height: mapHeight))
+
+        // Prepare photos (cap 12)
+        let uiPhotos: [UIImage] = ride.photos.compactMap { UIImage(data: $0.imageData) }
+        let capped = Array(uiPhotos.prefix(12))
+        let remaining = max(0, uiPhotos.count - capped.count)
+
+        // Prepare notes strings
+        let notes = ride.notes
+
+        // Compute dynamic heights
+        let titleFont = UIFont.systemFont(ofSize: 44, weight: .semibold)
+        let statFont = UIFont.systemFont(ofSize: 34, weight: .regular)
+        let smallFont = UIFont.systemFont(ofSize: 30, weight: .regular)
+
+        let titleHeight = title.height(constrainedToWidth: targetWidth - 2*margin, font: titleFont, maxLines: 1)
+        let statsBlockHeight: CGFloat = 44 // row labels rendered inline
+
+        // Photos grid sizing
+        let columns: CGFloat = 3
+        let gridSpacing: CGFloat = 8
+        let cellW = ((targetWidth - 2*margin) - gridSpacing * (columns - 1)) / columns
+        let rows = ceil(CGFloat(capped.count) / columns)
+        let photosHeight = rows > 0 ? rows * cellW + max(0, rows - 1) * gridSpacing : 0
+
+        // Notes height (simple stacked text)
+        var notesHeight: CGFloat = 0
+        for n in notes {
+            let body = n.text
+            notesHeight += body.height(constrainedToWidth: targetWidth - 2*margin, font: smallFont, maxLines: 0) + 6
+            var meta = DateFormatter.localizedString(from: n.timestamp, dateStyle: .none, timeStyle: .short)
+            if let lat = n.lat, let lon = n.lon { meta += "  @ " + String(format: "%.4f, %.4f", lat, lon) }
+            notesHeight += meta.height(constrainedToWidth: targetWidth - 2*margin, font: UIFont.systemFont(ofSize: 26), maxLines: 1) + 12
+        }
+
+        // Total height
+        let totalHeight = margin + titleHeight + spacing + statsBlockHeight + spacing + (mapImage != nil ? mapHeight : 0) + spacing + photosHeight + (remaining > 0 ? 40 : 0) + spacing + notesHeight + margin
+
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: targetWidth, height: totalHeight), format: format)
+        let image = renderer.image { ctx in
+            let cg = ctx.cgContext
+            UIColor.systemBackground.setFill()
+            cg.fill(CGRect(x: 0, y: 0, width: targetWidth, height: totalHeight))
+
+            var y = margin
+            // Title
+            title.draw(in: CGRect(x: margin, y: y, width: targetWidth - 2*margin, height: titleHeight), withFont: titleFont, color: .label, maxLines: 1)
+            y += titleHeight + spacing
+
+            // Stats line
+            let stats = "Distance: \(distance)    Duration: \(duration)    Average: \(avg)"
+            stats.draw(in: CGRect(x: margin, y: y, width: targetWidth - 2*margin, height: statsBlockHeight), withFont: statFont, color: .secondaryLabel, maxLines: 1)
+            y += statsBlockHeight + spacing
+
+            // Map snapshot
+            if let mapImage {
+                mapImage.draw(in: CGRect(x: margin, y: y, width: targetWidth - 2*margin, height: mapHeight))
+                y += mapHeight + spacing
+            }
+
+            // Photos grid
+            for (idx, ui) in capped.enumerated() {
+                let row = floor(CGFloat(idx) / columns)
+                let col = CGFloat(idx).truncatingRemainder(dividingBy: columns)
+                let x = margin + col * (cellW + gridSpacing)
+                let rect = CGRect(x: x, y: y + row * (cellW + gridSpacing), width: cellW, height: cellW)
+                ui.draw(in: rect)
+            }
+            if capped.count > 0 { y += photosHeight + (remaining > 0 ? 0 : spacing) }
+            if remaining > 0 {
+                let more = "+ \(remaining) more"
+                more.draw(in: CGRect(x: margin, y: y + 8, width: targetWidth - 2*margin, height: 32), withFont: UIFont.systemFont(ofSize: 28, weight: .semibold), color: .secondaryLabel, maxLines: 1)
+                y += 40 + spacing
+            } else if capped.count > 0 {
+                y += spacing
+            }
+
+            // Notes
+            for n in notes {
+                let body = n.text
+                let bodyH = body.height(constrainedToWidth: targetWidth - 2*margin, font: smallFont, maxLines: 0)
+                body.draw(in: CGRect(x: margin, y: y, width: targetWidth - 2*margin, height: bodyH), withFont: smallFont, color: .label, maxLines: 0)
+                y += bodyH + 6
+                var meta = DateFormatter.localizedString(from: n.timestamp, dateStyle: .none, timeStyle: .short)
+                if let lat = n.lat, let lon = n.lon { meta += "  @ " + String(format: "%.4f, %.4f", lat, lon) }
+                let metaFont = UIFont.systemFont(ofSize: 26)
+                let metaH = meta.height(constrainedToWidth: targetWidth - 2*margin, font: metaFont, maxLines: 1)
+                meta.draw(in: CGRect(x: margin, y: y, width: targetWidth - 2*margin, height: metaH), withFont: metaFont, color: .secondaryLabel, maxLines: 1)
+                y += metaH + 12
+            }
+        }
+        return image
+    }
+
+    private func snapshotMapImage(size: CGSize) async -> UIImage? {
+        guard let region = ride.coordinateBounds else { return nil }
+        let options = MKMapSnapshotter.Options()
+        options.region = region
+        options.size = size
+        options.scale = 1
+        let snapshotter = MKMapSnapshotter(options: options)
+        do {
+            let snapshot = try await snapshotter.start()
+            // Draw route polyline onto snapshot
+            let base = snapshot.image
+            let renderer = UIGraphicsImageRenderer(size: base.size)
+            let image = renderer.image { ctx in
+                base.draw(at: .zero)
+                let cg = ctx.cgContext
+                cg.setStrokeColor(UIColor.systemBlue.cgColor)
+                cg.setLineWidth(4)
+                cg.setLineJoin(.round)
+                cg.setLineCap(.round)
+                let coords = ride.points.map { CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lon) }
+                guard coords.count > 1 else { return }
+                let path = UIBezierPath()
+                for (i, c) in coords.enumerated() {
+                    let p = snapshot.point(for: c)
+                    if i == 0 { path.move(to: p) } else { path.addLine(to: p) }
+                }
+                cg.addPath(path.cgPath)
+                cg.strokePath()
+            }
+            return image
+        } catch {
+            print("Map snapshot error: \(error)")
+            return nil
+        }
     }
 }
 
@@ -669,6 +861,34 @@ private struct EditNoteSheet: View {
                 }
             }
         }
+    }
+}
+
+private extension String {
+    func height(constrainedToWidth width: CGFloat, font: UIFont, maxLines: Int) -> CGFloat {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineBreakMode = .byTruncatingTail
+        let attr: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .paragraphStyle: paragraph
+        ]
+        var rect = (self as NSString).boundingRect(with: CGSize(width: width, height: .greatestFiniteMagnitude), options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: attr, context: nil)
+        if maxLines > 0 {
+            let lineHeight = font.lineHeight
+            rect.size.height = min(rect.size.height, CGFloat(maxLines) * lineHeight)
+        }
+        return ceil(rect.size.height)
+    }
+
+    func draw(in rect: CGRect, withFont font: UIFont, color: UIColor, maxLines: Int) {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineBreakMode = maxLines == 1 ? .byTruncatingTail : .byWordWrapping
+        let attr: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: color,
+            .paragraphStyle: paragraph
+        ]
+        (self as NSString).draw(with: rect, options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: attr, context: nil)
     }
 }
 
