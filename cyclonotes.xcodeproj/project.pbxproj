@@ -14,7 +14,6 @@
 		798177E32E98F0B7001A527D /* ImageResizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 798177E22E98F0B7001A527D /* ImageResizer.swift */; };
 		798177E52E98F0B9001A527D /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 798177E42E98F0B9001A527D /* Localizable.strings */; };
 		798177E72E98F0C4001A527D /* FeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 798177E62E98F0C4001A527D /* FeedbackView.swift */; };
-		79D4BDEA2E9A31F20093084E /* AppOrientation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79D4BDE92E9A31F20093084E /* AppOrientation.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -24,7 +23,6 @@
 		798177E22E98F0B7001A527D /* ImageResizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageResizer.swift; sourceTree = "<group>"; };
 		798177E42E98F0B9001A527D /* Localizable.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; path = Localizable.strings; sourceTree = "<group>"; };
 		798177E62E98F0C4001A527D /* FeedbackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackView.swift; sourceTree = "<group>"; };
-		79D4BDE92E9A31F20093084E /* AppOrientation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppOrientation.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -58,7 +56,6 @@
 				798177E22E98F0B7001A527D /* ImageResizer.swift */,
 				798177E42E98F0B9001A527D /* Localizable.strings */,
 				798177E62E98F0C4001A527D /* FeedbackView.swift */,
-				79D4BDE92E9A31F20093084E /* AppOrientation.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -150,7 +147,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				79D4BDEA2E9A31F20093084E /* AppOrientation.swift in Sources */,
 				798177E72E98F0C4001A527D /* FeedbackView.swift in Sources */,
 				798177E12E98F0B4001A527D /* AppInfoExtensions.swift in Sources */,
 				7981777A2E9749B6001A527D /* OnboardingView.swift in Sources */,

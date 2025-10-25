@@ -11,7 +11,7 @@
 "feedback.toast.notSent" = "Email not sent";
 "feedback.diagnostics.footer" = "We’ll attach basic device/app info to help us troubleshoot.";
 "feedback.placeholder.topic" = "Short title (e.g. Map didn’t load)";
-"feedback.placeholder.description" = "What happened? Steps to reproduce? What did you expect?";
+"feedback.placeholder.description" = "What happened? What did you expect?";
 "feedback.accessibility.removePhoto" = "Remove photo %d";
 "feedback.fallback.photos.ios15" = "Photo attachments require a newer iOS version.";
 "feedback.createEmail" = "Create email";

@@ -596,6 +596,24 @@ struct RideDetailView: View {
                 }
                 cg.addPath(path.cgPath)
                 cg.strokePath()
+
+                // Draw Start Marker
+                if let start = coords.first {
+                    let startPoint = snapshot.point(for: start)
+                    let markerRadius: CGFloat = 10
+                    cg.setFillColor(UIColor.green.cgColor)
+                    cg.addEllipse(in: CGRect(x: startPoint.x - markerRadius, y: startPoint.y - markerRadius, width: markerRadius * 2, height: markerRadius * 2))
+                    cg.fillPath()
+                }
+
+                // Draw End Marker
+                if let end = coords.last {
+                    let endPoint = snapshot.point(for: end)
+                    let markerRadius: CGFloat = 10
+                    cg.setFillColor(UIColor.red.cgColor)
+                    cg.addEllipse(in: CGRect(x: endPoint.x - markerRadius, y: endPoint.y - markerRadius, width: markerRadius * 2, height: markerRadius * 2))
+                    cg.fillPath()
+                }
             }
             return image
         } catch {
