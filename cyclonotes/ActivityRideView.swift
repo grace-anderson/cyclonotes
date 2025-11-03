@@ -117,16 +117,23 @@ struct ActivityRideView: View {
                 Map(position: $cameraPosition, interactionModes: .all) {
                     let coords = recorder.livePoints.map { $0.coordinate }
 
-                    if coords.count > 1 {
-                        MapPolyline(coordinates: coords)
-                    }
-                    if let start = coords.first {
-                        Marker("Start", systemImage: "circle.fill", coordinate: start)
-                            .tint(.green)
-                    }
-                    if let end = coords.last {
-                        Marker("End", systemImage: "mappin.circle.fill", coordinate: end)
-                            .tint(.red)
+                    if recorder.state == .recording {
+                        if coords.count > 1 {
+                            MapPolyline(coordinates: coords)
+                        }
+                        if let start = coords.first {
+                            Marker("Start", systemImage: "circle.fill", coordinate: start)
+                                .tint(.green)
+                        }
+                        if let end = coords.last {
+                            Marker("End", systemImage: "mappin.circle.fill", coordinate: end)
+                                .tint(.red)
+                        }
+                    } else {
+                        if let current = coords.last {
+                            Marker("Current", systemImage: "circle.fill", coordinate: current)
+                                .tint(.green)
+                        }
                     }
                 }
                 // Follow rider only when following + recording
