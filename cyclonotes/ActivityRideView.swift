@@ -81,6 +81,9 @@ struct ActivityRideView: View {
     @State private var rideStartDate: Date? = nil
     @State private var abandonmentSignalled: Bool = false
 
+    // Added state for background detection
+    @State private var wasInBackground: Bool = false
+
     // Camera-driven Map (iOS 17+)
     @State private var cameraPosition: MapCameraPosition = .region(
         MKCoordinateRegion(
@@ -108,6 +111,25 @@ struct ActivityRideView: View {
 
     // Toast
     @State private var toastMessage: String? = nil
+
+    // Toast queue management
+    @State private var toastQueue: [String] = []
+    @State private var isShowingToast: Bool = false
+    private let toastDisplayDuration: TimeInterval = 5
+    private let toastGapDuration: TimeInterval = 2
+
+    @StateObject private var networkMonitor = NetworkMonitor()
+    @State private var hasShownOfflineBanner: Bool = false
+
+    // Connectivity toast management
+    @State private var connectivityCheckTask: Task<Void, Never>? = nil
+    @State private var lastOfflineToastAt: Date? = nil
+    @State private var lastOnlineToastAt: Date? = nil
+    @State private var didShowOfflineThisSession: Bool = false
+
+    private let connectivityDebounceSeconds: TimeInterval = 4
+    private let offlineToastCooldown: TimeInterval = 180   // 3 minutes
+    private let onlineToastCooldown: TimeInterval = 180    // 3 minutes
 
     var body: some View {
         GeometryReader { geo in
@@ -261,10 +283,7 @@ struct ActivityRideView: View {
                                     if recorder.state == .idle {
                                         selectedActivity = activity
                                     } else {
-                                        withAnimation { toastMessage = "Stop recording to change activity" }
-                                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                                            withAnimation { toastMessage = nil }
-                                        }
+                                        enqueueToast("Stop recording to change activity")
                                     }
                                 }
                             }
@@ -351,10 +370,7 @@ struct ActivityRideView: View {
             NoteSheet(noteText: $noteText) {
                 addNote(text: $noteText.wrappedValue)
                 noteText = ""
-                withAnimation { toastMessage = "Your note is saved with your activity" }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                    withAnimation { toastMessage = nil }
-                }
+                enqueueToast("Your note is saved with your activity")
             }
         }
         .onChange(of: selectedPhoto) { _, item in
@@ -363,9 +379,14 @@ struct ActivityRideView: View {
         // ScenePhase: re-trigger one-shot centering on foreground
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
-                didCenterOnLaunch = false
-                oneShotLocator.request()
+                recorder.setBackgroundMode(active: false)
+                if wasInBackground && recorder.state != .idle {
+                    enqueueToast("Recording continued in background with reduced precision to save battery.")
+                    wasInBackground = false
+                }
             } else if newPhase == .inactive || newPhase == .background {
+                wasInBackground = true
+                recorder.setBackgroundMode(active: true)
                 // Potential abandonment: user left the app during an active recording soon after starting
                 if recorder.state != .idle, let start = rideStartDate, abandonmentSignalled == false {
                     let duration = Date().timeIntervalSince(start)
@@ -385,7 +406,66 @@ struct ActivityRideView: View {
                 }
             }
         }
+        .onChange(of: networkMonitor.isOffline) { _, isOffline in
+            // Cancel any in-flight debounce when status changes
+            connectivityCheckTask?.cancel()
+
+            // Debounce: wait a moment to ensure the state is stable
+            connectivityCheckTask = Task { [isOffline] in
+                try? await Task.sleep(nanoseconds: UInt64(connectivityDebounceSeconds * 1_000_000_000))
+
+                // Ensure this task wasn't cancelled and the state remains the same
+                guard !Task.isCancelled, networkMonitor.isOffline == isOffline else { return }
+
+                // Only show toasts when the app is active
+                guard scenePhase == .active else { return }
+
+                if isOffline {
+                    let now = Date()
+                    let canShowOffline = (lastOfflineToastAt == nil) || (now.timeIntervalSince(lastOfflineToastAt!) >= offlineToastCooldown)
+                    if canShowOffline {
+                        enqueueToast("You are offline. Your route is still being recorded but map detail may be reduced to save battery.")
+                        lastOfflineToastAt = now
+                        didShowOfflineThisSession = true
+                    }
+                } else {
+                    // Only show back-online if we showed offline earlier this session
+                    guard didShowOfflineThisSession else { return }
+                    let now = Date()
+                    let canShowOnline = (lastOnlineToastAt == nil) || (now.timeIntervalSince(lastOnlineToastAt!) >= onlineToastCooldown)
+                    if canShowOnline {
+                        enqueueToast("You're back online.")
+                        lastOnlineToastAt = now
+                        // Reset the session flag so the next offline requires a fresh offline toast
+                        didShowOfflineThisSession = false
+                    }
+                }
+            }
+        }
         .navigationTitle("Record Ride")
+    }
+
+    // MARK: - Toast Queue
+    private func enqueueToast(_ message: String) {
+        toastQueue.append(message)
+        processToastQueue()
+    }
+
+    private func processToastQueue() {
+        // If a toast is already showing, wait until it's cleared
+        if isShowingToast { return }
+        guard let next = toastQueue.first else { return }
+        isShowingToast = true
+        withAnimation { toastMessage = next }
+        // Hide after display duration, then wait for gap before showing next
+        DispatchQueue.main.asyncAfter(deadline: .now() + toastDisplayDuration) {
+            withAnimation { toastMessage = nil }
+            toastQueue.removeFirst()
+            DispatchQueue.main.asyncAfter(deadline: .now() + toastGapDuration) {
+                isShowingToast = false
+                processToastQueue()
+            }
+        }
     }
 
     // MARK: - Actions
@@ -437,10 +517,14 @@ struct ActivityRideView: View {
         ride.endedAt = .now
         ride.distanceMeters = recorder.distanceMeters
         ride.points = recorder.livePoints.map { loc in
-            RoutePoint(timestamp: loc.timestamp,
-                       lat: loc.coordinate.latitude,
-                       lon: loc.coordinate.longitude,
-                       speedMps: max(0, loc.speed))
+            let acc: Double? = (loc.horizontalAccuracy >= 0) ? loc.horizontalAccuracy : nil
+            return RoutePoint(
+                timestamp: loc.timestamp,
+                lat: loc.coordinate.latitude,
+                lon: loc.coordinate.longitude,
+                speedMps: max(0, loc.speed),
+                accuracyMeters: acc
+            )
         }
         context.insert(ride)
         do { try context.save() } catch { print("Failed to save ride: \(error)") }
@@ -452,10 +536,7 @@ struct ActivityRideView: View {
 
         selectedActivity = nil
 
-        withAnimation { toastMessage = "Go to History to see your saved activity" }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-            withAnimation { toastMessage = nil }
-        }
+        enqueueToast("Go to History to see your saved activity")
     }
 
     private func addNote(text: String) {
@@ -514,10 +595,7 @@ struct ActivityRideView: View {
                 ])
                 TelemetryDeck.signal("photoAdded", parameters: photoPayload)
                 
-                withAnimation { toastMessage = "Your photo is saved with your activity" }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                    withAnimation { toastMessage = nil }
-                }
+                enqueueToast("Your photo is saved with your activity")
             }
             else {
                 let payload = Analytics.merged(with: [
@@ -598,4 +676,3 @@ private struct ActivityChip: View {
         }
     }
 }
-

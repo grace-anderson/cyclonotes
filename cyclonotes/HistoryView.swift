@@ -618,7 +618,54 @@ struct RideDetailView: View {
             return image
         } catch {
             print("Map snapshot error: \(error)")
-            return nil
+            let baseSize = size
+            let renderer = UIGraphicsImageRenderer(size: baseSize)
+            let image = renderer.image { ctx in
+                let cg = ctx.cgContext
+                UIColor.systemBackground.setFill()
+                cg.fill(CGRect(origin: .zero, size: baseSize))
+                // Draw simple route polyline normalized into the canvas
+                let coords = ride.points.map { CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lon) }
+                guard coords.count > 1 else { return }
+                // Compute bounds
+                var minLat = coords.first!.latitude, maxLat = coords.first!.latitude
+                var minLon = coords.first!.longitude, maxLon = coords.first!.longitude
+                for c in coords { minLat = min(minLat, c.latitude); maxLat = max(maxLat, c.latitude); minLon = min(minLon, c.longitude); maxLon = max(maxLon, c.longitude) }
+                let inset: CGFloat = 20
+                let drawRect = CGRect(x: inset, y: inset, width: baseSize.width - inset*2, height: baseSize.height - inset*2)
+                // Map coordinate -> point
+                func point(for coord: CLLocationCoordinate2D) -> CGPoint {
+                    let x = (coord.longitude - minLon) / max(0.000001, (maxLon - minLon))
+                    let y = (coord.latitude - minLat) / max(0.000001, (maxLat - minLat))
+                    // Flip y for canvas coordinates
+                    return CGPoint(x: drawRect.minX + CGFloat(x) * drawRect.width, y: drawRect.maxY - CGFloat(y) * drawRect.height)
+                }
+                let path = UIBezierPath()
+                for (i, c) in coords.enumerated() {
+                    let p = point(for: c)
+                    if i == 0 { path.move(to: p) } else { path.addLine(to: p) }
+                }
+                cg.setStrokeColor(UIColor.systemBlue.cgColor)
+                cg.setLineWidth(4)
+                cg.setLineJoin(.round)
+                cg.setLineCap(.round)
+                cg.addPath(path.cgPath)
+                cg.strokePath()
+                // Start/End markers
+                if let start = coords.first {
+                    let sp = point(for: start)
+                    cg.setFillColor(UIColor.green.cgColor)
+                    cg.addEllipse(in: CGRect(x: sp.x - 6, y: sp.y - 6, width: 12, height: 12))
+                    cg.fillPath()
+                }
+                if let end = coords.last {
+                    let ep = point(for: end)
+                    cg.setFillColor(UIColor.red.cgColor)
+                    cg.addEllipse(in: CGRect(x: ep.x - 6, y: ep.y - 6, width: 12, height: 12))
+                    cg.fillPath()
+                }
+            }
+            return image
         }
     }
 }

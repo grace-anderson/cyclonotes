@@ -74,12 +74,14 @@ final class RoutePoint {
     var lat: Double
     var lon: Double
     var speedMps: Double
+    var accuracyMeters: Double?
 
-    init(timestamp: Date = .now, lat: Double, lon: Double, speedMps: Double = 0) {
+    init(timestamp: Date = .now, lat: Double, lon: Double, speedMps: Double = 0, accuracyMeters: Double? = nil) {
         self.timestamp = timestamp
         self.lat = lat
         self.lon = lon
         self.speedMps = speedMps
+        self.accuracyMeters = accuracyMeters
     }
 }
 
